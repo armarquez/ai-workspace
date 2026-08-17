@@ -1,0 +1,33 @@
+# Claude Code — subscription tier, primary driver.
+#
+# This module is unrelated to ~/dotfiles/claude/justfile, which manages your
+# global ~/.claude via Stow. This one never touches ~/.claude/settings.json,
+# ~/.claude/rules/, or ~/.claude.json directly — `link` goes through the
+# supported `claude mcp add-json ... -s user` API, which merges rather than
+# replacing that live file.
+
+# Launch Claude Code from the repo root, with secrets injected
+start:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    op run --env-file=secrets.env -- claude
+
+# Verify install without changing anything
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v claude >/dev/null 2>&1; then
+        echo "✓ claude ($(claude --version 2>&1 | head -1))"
+    else
+        echo "✗ claude not found — run: mise install"
+        exit 1
+    fi
+
+# Register this repo's MCP servers in Claude Code's user scope (merges into ~/.claude.json, never overwrites)
+link:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py link claude
+
+# Remove this repo's MCP servers from Claude Code's user scope
+unlink:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py unlink claude
