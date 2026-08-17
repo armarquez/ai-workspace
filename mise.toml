@@ -1,0 +1,8 @@
+# Repo-scoped toolchain. Bootstrap only needs `mise` + `direnv` + 1Password CLI
+# installed on the host; `mise install` handles everything else.
+#
+# When a version needs bumping, look up the current stable release on GitHub
+# (do not guess from memory).
+
+[tools]
+just         = "1.57.0"     # https://github.com/casey/just/releases
