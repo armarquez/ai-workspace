@@ -6,6 +6,10 @@ set -euo pipefail
 
 status=0
 
+# curl/python3 are load-bearing across most recipes (port polling, TOML
+# parsing) so a missing one is a hard failure alongside the rest.
+required_tools=(mise direnv op uv curl python3)
+
 # `op whoami` can block indefinitely on a GUI unlock prompt (Touch ID / device
 # approval) that never resolves in a non-interactive shell. Bound it manually —
 # a portable `timeout` binary isn't guaranteed on every machine this runs on.
@@ -27,9 +31,7 @@ with_timeout() {
 }
 
 echo "Host tools:"
-# curl/python3 are load-bearing across most recipes (port polling, TOML
-# parsing) so a missing one is a hard failure like the others.
-for tool in mise direnv op uv curl python3; do
+for tool in "${required_tools[@]}"; do
     if command -v "$tool" >/dev/null 2>&1; then
         echo "  ✓ $tool"
     else
