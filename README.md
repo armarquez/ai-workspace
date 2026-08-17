@@ -106,3 +106,22 @@ name, different repo, different job. Neither one touches
   `https://ollama.com/library/<name>/tags` before pinning it. See `ollama/README.md` for
   what network calls Ollama actually makes, and why models are checked against an allowlist
   before every pull.
+
+## Platform support
+
+Tested on macOS and WSL (Windows Subsystem for Linux) — WSL is real Linux, so every recipe here
+works the same as on Linux/macOS. **Bare native Windows (PowerShell/cmd, no WSL) is not
+supported**: every multi-line recipe uses a `#!/usr/bin/env bash` shebang, `.envrc`/`direnv`
+doesn't work in PowerShell/cmd, and `mise`'s `[env]` block isn't applied on native Windows
+outside `mise x`/`mise run`. Fixing that would mean either requiring Git Bash and a
+`windows-shell` setting, or rewriting the affected recipes — out of scope for now.
+
+WSL-specific notes:
+
+- `lsof` isn't preinstalled on a fresh WSL Ubuntu image but is needed by `just ollama stop` /
+  `just down` — `just doctor` warns if it's missing; fix with `sudo apt-get install lsof`.
+- WSL shares the Windows `PATH` by default, so a separately-installed Windows-side binary (most
+  likely Ollama's own desktop app) can shadow the WSL/mise-managed one of the same name. `just
+  doctor` checks `ollama` specifically and warns if it resolves under `/mnt/`.
+- 1Password's biometric desktop-app integration doesn't bridge into WSL — `op signin`/`op run`
+  still work, just via typed master password + Secret Key instead of Touch ID/Windows Hello.
