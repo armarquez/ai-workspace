@@ -27,7 +27,9 @@ with_timeout() {
 }
 
 echo "Host tools:"
-for tool in mise direnv op uv; do
+# curl/python3 are load-bearing across most recipes (port polling, TOML
+# parsing) so a missing one is a hard failure like the others.
+for tool in mise direnv op uv curl python3; do
     if command -v "$tool" >/dev/null 2>&1; then
         echo "  ✓ $tool"
     else
@@ -35,6 +37,35 @@ for tool in mise direnv op uv; do
         status=1
     fi
 done
+# lsof is only used by `just ollama stop`/`just down`, and isn't preinstalled
+# on a fresh WSL Ubuntu image — a soft warning, not a hard failure.
+if command -v lsof >/dev/null 2>&1; then
+    echo "  ✓ lsof"
+else
+    echo "  ~ lsof not found — \`just ollama stop\`/\`just down\` won't work (WSL: sudo apt-get install lsof)"
+fi
+
+is_wsl() {
+    [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null
+}
+if is_wsl; then
+    echo ""
+    echo "WSL:"
+    ollama_path=$(command -v ollama 2>/dev/null || true)
+    case "$ollama_path" in
+    /mnt/*)
+        echo "  ⚠ ollama resolves to $ollama_path — that's the Windows side, not the mise-managed"
+        echo "    Linux binary. WSL shares the Windows PATH by default; a Windows-side Ollama"
+        echo "    install can shadow this repo's pinned one. See README § Toolchain notes."
+        ;;
+    "")
+        : # not installed yet — the main tool loop above doesn't cover it, `just ollama check` will
+        ;;
+    *)
+        echo "  ✓ ollama resolves inside WSL ($ollama_path)"
+        ;;
+    esac
+fi
 
 echo ""
 echo "1Password:"

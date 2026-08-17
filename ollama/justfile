@@ -33,6 +33,11 @@ serve:
 stop:
     #!/usr/bin/env bash
     set -euo pipefail
+    command -v lsof >/dev/null 2>&1 || {
+        echo "✗ lsof not found — needed to locate the server process"
+        echo "  WSL: sudo apt-get install lsof"
+        exit 1
+    }
     pid=$(lsof -ti:11434 2>/dev/null || true)
     if [ -z "$pid" ]; then
         echo "~ ollama not running on :11434 (nothing to stop)"
