@@ -103,4 +103,6 @@ name, different repo, different job. Neither one touches
 - If `mise install` fails on `ollama` with an extraction error, it's a known
   aqua-backend issue on macOS — fall back to `brew install ollama`.
 - Local model tag lives in `ollama/models.toml`; verify any new tag exists at
-  `https://ollama.com/library/<name>/tags` before pinning it.
+  `https://ollama.com/library/<name>/tags` before pinning it. See `ollama/README.md` for
+  what network calls Ollama actually makes, and why models are checked against an allowlist
+  before every pull.
