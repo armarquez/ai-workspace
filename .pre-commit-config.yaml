@@ -1,0 +1,42 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: check-case-conflict
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: ['--severity=warning']
+        files: '\.sh$'
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+
+  # Secret scanner — blocks staged changes that look like API tokens, keys,
+  # or high-entropy strings. secrets.env only holds `op://` references, never
+  # real values, so this should always pass cleanly; it's here to catch a
+  # future mistake, not because one has happened.
+  #
+  # `local`, not the gitleaks/gitleaks hook repo: that hook builds gitleaks
+  # from source via `go install` on first run, which fails here on a Go
+  # toolchain version mismatch. This calls the binary mise already pins
+  # instead — no Go toolchain dependency, and one less thing to build.
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks
+        entry: gitleaks protect --staged --redact -v
+        language: system
+        pass_filenames: false

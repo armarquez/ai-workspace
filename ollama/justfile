@@ -1,0 +1,70 @@
+# Ollama — local model tier. Recipes here, not the root justfile, own
+# everything Ollama-specific (service lifecycle, model pins, install fallback).
+#
+# mise's aqua:ollama/ollama install has broken twice on macOS (tar.zst asset
+# renaming: https://github.com/jdx/mise/discussions/7758, PAX xattr
+# extraction: https://github.com/jdx/mise/discussions/10976). `check` detects
+# a broken install and points at the brew fallback instead of failing silently.
+
+default_model := `python3 -c "import tomllib,sys; print(tomllib.load(open('models.toml','rb'))['default'])"`
+
+# Alias for `serve` — satisfies the shared provider-module contract
+start: serve
+
+# Start the Ollama server in the background (idempotent)
+serve:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if curl -sf http://127.0.0.1:11434/ >/dev/null 2>&1; then
+        echo "✓ ollama already serving on :11434"
+        exit 0
+    fi
+    command -v ollama >/dev/null 2>&1 || { echo "✗ ollama not found — run: just ollama check"; exit 1; }
+    nohup ollama serve >/tmp/ollama-serve.log 2>&1 &
+    disown
+    for _ in $(seq 1 20); do
+        curl -sf http://127.0.0.1:11434/ >/dev/null 2>&1 && { echo "✓ ollama serving on :11434"; exit 0; }
+        sleep 0.5
+    done
+    echo "✗ ollama did not come up — see /tmp/ollama-serve.log"
+    exit 1
+
+# Pull a model (defaults to models.toml's "default")
+pull model=default_model:
+    ollama pull {{ model }}
+
+# List locally pulled models
+ls:
+    ollama list
+
+# Show what's currently loaded/running
+ps:
+    ollama ps
+
+# Remove a pulled model
+rm model:
+    ollama rm {{ model }}
+
+# Verify install + server reachability without changing anything
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v ollama >/dev/null 2>&1; then
+        echo "✓ ollama ($(ollama --version 2>&1 | head -1))"
+    else
+        echo "✗ ollama not found"
+        echo "  mise's aqua backend has known macOS extraction bugs — try: brew install ollama"
+        exit 1
+    fi
+    if curl -sf http://127.0.0.1:11434/ >/dev/null 2>&1; then
+        echo "✓ ollama serving on :11434"
+    else
+        echo "~ ollama not serving — run: just ollama serve"
+    fi
+
+# No global config to write for Ollama — present for contract symmetry
+link:
+    @echo "~ ollama has no global config to link (nothing to do)"
+
+unlink:
+    @echo "~ ollama has no global config to unlink (nothing to do)"

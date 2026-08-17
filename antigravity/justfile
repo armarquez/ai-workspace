@@ -1,0 +1,29 @@
+# Antigravity CLI (`agy`) — Google's replacement for the retired Gemini CLI
+# (https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/).
+# Separate quota from the Claude Code tier.
+
+# Launch Antigravity CLI from the repo root, with secrets injected
+start:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    op run --env-file=secrets.env -- agy
+
+# Verify install without changing anything
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v agy >/dev/null 2>&1; then
+        echo "✓ agy ($(agy --version 2>&1 | head -1))"
+    else
+        echo "✗ agy not found — run: mise install"
+        exit 1
+    fi
+
+# Merge this repo's MCP servers into ~/.gemini/config/mcp_config.json (backs up first, never overwrites wholesale)
+link:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py link antigravity
+
+# Remove this repo's MCP servers from the global Antigravity config
+unlink:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py unlink antigravity

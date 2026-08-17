@@ -1,0 +1,20 @@
+# Canonical MCP server definitions. scripts/sync-mcp.py renders this into
+# each CLI's native config format (see README for the per-CLI path/schema
+# table) — this file is the only place a server gets added or removed.
+#
+# Fields:
+#   type    = "stdio" (default) | "http"
+#   command + args (+ env)  -- for stdio; env values may use ${VAR}, which
+#                              sync-mcp.py leaves literal so the target CLI
+#                              expands it at its own runtime.
+#   url + headers            -- for http
+#
+# basic-memory has no env var for its project path — it resolves projects by
+# name via its own project registry (`basic-memory project add ...`, run by
+# `just doctor`), not from this file. See scripts/doctor.sh.
+
+[basic-memory]
+type = "stdio"
+command = "uvx"
+args = ["basic-memory", "mcp"]
+description = "Shared markdown memory across all providers"

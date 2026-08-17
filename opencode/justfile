@@ -1,0 +1,36 @@
+# opencode — provider-agnostic front end. Handles OpenRouter spillover and
+# the local Ollama tier; see providers.json for the Ollama provider block.
+
+# Launch opencode from the repo root, optionally pinned to a model
+start model="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    if [ -n "{{ model }}" ]; then
+        op run --env-file=secrets.env -- opencode --model "{{ model }}"
+    else
+        op run --env-file=secrets.env -- opencode
+    fi
+
+# List models resolvable from the current provider config
+models:
+    cd '{{ justfile_directory() }}' && opencode models
+
+# Verify install without changing anything
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v opencode >/dev/null 2>&1; then
+        echo "✓ opencode ($(opencode --version 2>&1 | head -1))"
+    else
+        echo "✗ opencode not found — run: mise install"
+        exit 1
+    fi
+
+# Merge this repo's MCP servers into ~/.config/opencode/opencode.json (backs up first, never overwrites wholesale)
+link:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py link opencode
+
+# Remove this repo's MCP servers from the global opencode config
+unlink:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py unlink opencode
