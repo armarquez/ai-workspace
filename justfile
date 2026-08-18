@@ -9,6 +9,11 @@ default:
 # One-step setup on any new machine. No $HOME writes — see `link-global`.
 bootstrap:
     mise install
+    # A freshly-installed tool's shim isn't always resolvable in the same
+    # script run as `mise install` (seen on WSL: `prek install` right after
+    # bootstrap failed with "not found", worked a moment later). `reshim`
+    # makes it available immediately instead of relying on the next shell.
+    mise reshim
     just install-hooks
     just sync-mcp
     just doctor
