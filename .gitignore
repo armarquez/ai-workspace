@@ -2,6 +2,7 @@
 /.mcp.json
 /.agents/
 /opencode.json
+/.codex/
 
 # direnv
 /.direnv/
