@@ -1,0 +1,75 @@
+# OpenAI Codex CLI — ChatGPT-plan tier. Authenticates with a ChatGPT sign-in
+# (`codex login`), not an API key, so `start` needs no secrets injected and is
+# the one module without an `op run` wrapper.
+#
+# Deliberate: Codex reads CODEX_API_KEY from the environment and it *outranks* a
+# stored ChatGPT session, so injecting one here would silently move billing from
+# the plan to per-token API usage. OPENAI_API_KEY is not read for auth at all.
+# See https://developers.openai.com/codex/auth
+
+# Launch Codex from the repo root
+start model="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    if [ -n "{{ model }}" ]; then
+        codex --model "{{ model }}"
+    else
+        codex
+    fi
+
+# Run a prompt non-interactively (`codex exec`; note -p is --profile, not prompt)
+exec prompt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    codex exec '{{ prompt }}'
+
+# Verify install, credentials, and the rendered config. Never mutates anything
+check:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    cd '{{ justfile_directory() }}'
+    status=0
+    if command -v codex >/dev/null 2>&1; then
+        # `codex --version` prints "codex-cli <ver>", not a bare version.
+        echo "✓ codex ($(codex --version 2>&1 | head -1))"
+    else
+        echo "✗ codex not found — run: mise install"
+        exit 1
+    fi
+    # `codex login status` reports stored credentials, not usable ones — it
+    # succeeds while a refresh token is spent, and the failure only shows up on
+    # first real use as "your refresh token was already used". So treat this as
+    # "credentials on file", not "auth works".
+    if codex login status >/dev/null 2>&1; then
+        echo "  ✓ credentials on file (if a run fails to refresh: codex login)"
+    else
+        echo "  ⚠ no credentials — run: codex login  (browser), or: codex login --device-auth"
+    fi
+    # Validated offline with python rather than by shelling to codex: `codex mcp
+    # list` needs working auth, and `codex exec --strict-config` would spend a
+    # real model turn, which a `check` recipe has no business doing.
+    if [ -f .codex/config.toml ]; then
+        if python3 scripts/check-codex-config.py .codex/config.toml; then
+            echo "  ✓ .codex/config.toml valid"
+        else
+            status=1
+        fi
+    else
+        echo "  ⚠ .codex/config.toml missing — run: just sync-mcp"
+        status=1
+    fi
+    exit $status
+
+# List MCP servers Codex resolves, across the merged global + repo config
+mcp:
+    cd '{{ justfile_directory() }}' && codex mcp list
+
+# Register this repo's MCP servers in Codex's global config (~/.codex/config.toml)
+link:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py link codex
+
+# Remove this repo's MCP servers from the global Codex config
+unlink:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py unlink codex

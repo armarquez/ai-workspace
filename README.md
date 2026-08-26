@@ -18,14 +18,15 @@ Then pick a tier:
 just claude start          # subscription, primary driver
 just antigravity start     # agy — Google's replacement for the retired Gemini CLI
 just opencode start        # OpenRouter spillover, or any of its 75+ providers
+just codex start           # OpenAI Codex, on a ChatGPT plan
 just local                 # opencode + Ollama, fully offline
 ```
 
 ## Layout
 
-One folder per provider (`claude/`, `antigravity/`, `opencode/`, `ollama/`),
-each with its own `justfile` surfaced from the root via `mod <name>`. Every
-provider module exposes the same four recipes:
+One folder per provider (`claude/`, `antigravity/`, `opencode/`, `codex/`,
+`ollama/`), each with its own `justfile` surfaced from the root via
+`mod <name>`. Every provider module exposes the same four recipes:
 
 | Recipe | Does |
 |---|---|
@@ -36,14 +37,19 @@ provider module exposes the same four recipes:
 
 MCP servers are defined once, in `mcp/servers.toml`, and rendered into each
 CLI's native format by `scripts/sync-mcp.py` (`just sync-mcp`). Never
-hand-edit `.mcp.json`, `.agents/mcp_config.json`, or `opencode.json` — they're
-generated and gitignored.
+hand-edit `.mcp.json`, `.agents/mcp_config.json`, `opencode.json`, or
+`.codex/config.toml` — they're generated and gitignored.
 
 | CLI | Repo-scoped config | Root key |
 |---|---|---|
 | Claude Code | `.mcp.json` | `mcpServers` |
 | Antigravity CLI | `.agents/mcp_config.json` | `mcpServers` (remote servers use `serverUrl`) |
 | opencode | `opencode.json` | `mcp` |
+| Codex | `.codex/config.toml` | `mcp_servers` (TOML; **no** `type` key — see below) |
+
+Two of those have a non-obvious half that is checked in and hand-edited, with
+the MCP block appended by the renderer: `opencode/providers.json` for opencode,
+and `codex/config-base.toml` for Codex.
 
 Shared instructions live in `AGENTS.md` — opencode and Antigravity read it
 natively. Claude Code does not, so `CLAUDE.md` starts with `@AGENTS.md` and
@@ -100,6 +106,20 @@ name, different repo, different job. Neither one touches
   scopes per-directory, so this is expected, not a bug.
 - Claude Code self-updates its binary; `DISABLE_AUTOUPDATER=1` in
   `mise.toml`'s `[env]` keeps the pin meaningful past the first install.
+- Codex is the one module with no `op run` wrapper, because it authenticates
+  with a ChatGPT sign-in (`codex login`) rather than a key. That is deliberate:
+  Codex reads `CODEX_API_KEY` from the environment and it *outranks* a stored
+  ChatGPT session, so injecting one would silently move billing from the plan to
+  per-token API usage. (`OPENAI_API_KEY` is not read for auth at all — only
+  `CODEX_API_KEY` is, which is a common source of confusion.)
+- Codex asks once whether to trust this directory. Its repo-local config layer
+  is inert until you say yes, so `.codex/config.toml` does nothing on the first
+  run until you accept the prompt.
+- Codex's MCP schema is stricter than the others': the table is `mcp_servers`
+  (snake_case), the transport is inferred from `command` vs `url`, and an extra
+  key such as `type` is a hard deserialize error that takes the whole server
+  table down rather than being ignored. `just codex check` validates the
+  rendered file offline for exactly this.
 - If `mise install` fails on `ollama` with an extraction error, it's a known
   aqua-backend issue on macOS — fall back to `brew install ollama`.
 - Local model tag lives in `ollama/models.toml`; verify any new tag exists at

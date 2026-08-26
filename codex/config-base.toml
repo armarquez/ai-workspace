@@ -1,0 +1,25 @@
+# Non-MCP half of the rendered Codex config, same role that
+# opencode/providers.json plays for opencode: this file is checked in and
+# hand-edited, scripts/sync-mcp.py copies it verbatim and appends the
+# [mcp_servers.*] tables from mcp/servers.toml to produce .codex/config.toml.
+#
+# Codex reads a repo-local `.codex/config.toml` as its "repo" config layer and
+# merges it over ~/.codex/config.toml, so this stays repo-scoped by default —
+# no $HOME writes. Codex asks once whether to trust this directory; project
+# layers are inert until you say yes.
+#
+# Only keys Codex accepts in a *project* layer belong here. It ignores (and
+# warns about) openai_base_url, chatgpt_base_url, model_provider,
+# model_providers, notify, profile, profiles and otel in a project file.
+# mcp_servers, approval_policy and sandbox_mode are all fine.
+#
+# Reference: https://developers.openai.com/codex/config-reference
+
+# workspace-write is Codex's own default; pinned here so it is explicit and
+# survives a change of default upstream. read-only is the paranoid setting;
+# danger-full-access disables the sandbox entirely.
+sandbox_mode = "workspace-write"
+
+# on-request = Codex asks before doing something the sandbox would block.
+# "untrusted" asks for far more, "never" asks for nothing.
+approval_policy = "on-request"

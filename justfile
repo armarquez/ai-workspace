@@ -1,6 +1,7 @@
 mod claude
 mod antigravity
 mod opencode
+mod codex
 mod ollama
 
 default:
@@ -36,6 +37,7 @@ doctor:
     just claude check || status=1
     just antigravity check || status=1
     just opencode check || status=1
+    just codex check || status=1
     just ollama check || status=1
     exit $status
 
@@ -48,6 +50,7 @@ link-global:
     just claude link
     just antigravity link
     just opencode link
+    just codex link
     just ollama link
 
 # Reverse link-global
@@ -55,6 +58,7 @@ unlink-global:
     just claude unlink
     just antigravity unlink
     just opencode unlink
+    just codex unlink
     just ollama unlink
 
 # Stop background processes started by this repo's recipes (currently: `ollama serve`)
