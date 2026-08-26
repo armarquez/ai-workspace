@@ -1,9 +1,17 @@
-# Pinned local models. Tags verified against https://ollama.com/library/<name>
-# before adding — do not guess a tag from memory.
+# Pinned local models + the family allowlist enforced by
+# `just ollama check-model` / `just ollama pull`.
 #
-# "default" is what `just local` and `just ollama pull` (no args) use.
+# The allowlist exists mainly to stop a typo'd or copy-pasted model name from
+# silently becoming a "-cloud" tagged model — those proxy inference to a
+# remote server instead of running locally, which defeats the point.
+#
+# Tags verified against https://ollama.com/library/<name>/tags before
+# adding — do not guess a tag from memory.
 
-default = "qwen3.8:27b"
+default = "qwen3:30b"
+
+allowed_families = ["qwen3", "qwen2.5", "gemma3", "llama3", "llama3.1", "llama3.2"]
 
 [models]
-qwen3.8 = "qwen3.8:27b"       # ~17 GB at q4 — fits 36 GB unified memory
+qwen3 = "qwen3:30b"              # 19 GB, 256K context, MoE — fits 36 GB unified memory
+gemma3 = "gemma3:27b-it-q4_K_M"  # 17 GB, 128K context, text+image
