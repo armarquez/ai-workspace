@@ -1,0 +1,24 @@
+# Bring an existing repo onto this toolkit: CLAUDE.md -> AGENTS.md, agent-CLI tool pins in
+# its mise.toml, and mcp/servers.toml's servers in its .mcp.json. Not a provider — see
+# scripts/onboard-repo.py's own docstring for the safety model (dry-run by default, --apply
+# to write, never runs git in the target repo).
+
+# Convert <target>'s CLAUDE.md into AGENTS.md (+ CLAUDE.md -> @AGENTS.md). Dry-run unless --apply.
+agents-md target *args:
+    cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py agents-md {{ target }} {{ args }}
+
+# Add missing agent-CLI tool pins into <target>'s mise.toml. Dry-run unless --apply.
+mise-tools target *args:
+    cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py mise-tools {{ target }} {{ args }}
+
+# Merge mcp/servers.toml's servers into <target>'s .mcp.json. Dry-run unless --apply.
+mcp target *args:
+    cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py mcp {{ target }} {{ args }}
+
+# Run agents-md, mise-tools, and mcp together. Dry-run unless --apply.
+all target *args:
+    cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py all {{ target }} {{ args }}
+
+# Read-only status against <target>: never mutates anything.
+check target:
+    cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py check {{ target }}

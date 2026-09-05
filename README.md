@@ -5,6 +5,9 @@ move to another provider when tokens run low, ending in a fully local
 fallback. Everything is pinned in this repo; the host only needs `mise`,
 `direnv`, and `op` (1Password CLI).
 
+See [docs/](./docs/README.md) for the architecture, a full recipe reference, and a
+walkthrough onboarding another repo onto this toolkit.
+
 ## Quick start
 
 ```sh
@@ -72,6 +75,10 @@ project by `just doctor`.
 
 `squad/` runs several of the providers above in parallel via claude-squad — see
 [Parallel agents via claude-squad](#parallel-agents-via-claude-squad), below.
+
+`onboard/` brings an *existing* repo onto this toolkit — `CLAUDE.md` → `AGENTS.md`,
+agent-CLI tool pins in its `mise.toml`, `basic-memory` in its `.mcp.json` — see
+[docs/onboarding-a-repo.md](./docs/onboarding-a-repo.md) for a full walkthrough.
 
 ## Secrets
 
