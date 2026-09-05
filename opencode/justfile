@@ -6,10 +6,14 @@ start model="":
     #!/usr/bin/env bash
     set -euo pipefail
     cd '{{ justfile_directory() }}'
+    # WSL shares the Windows PATH, so a Windows-installed 1Password CLI
+    # resolves as `op.exe`, not `op` — see scripts/doctor.sh's op_cmd().
+    op=op.exe
+    command -v op.exe >/dev/null 2>&1 || op=op
     if [ -n "{{ model }}" ]; then
-        op run --env-file=secrets.env -- opencode --model "{{ model }}"
+        "$op" run --env-file=secrets.env -- opencode --model "{{ model }}"
     else
-        op run --env-file=secrets.env -- opencode
+        "$op" run --env-file=secrets.env -- opencode
     fi
 
 # List models resolvable from the current provider config
