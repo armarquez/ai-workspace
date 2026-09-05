@@ -1,0 +1,28 @@
+# Canonical PreToolUse guards. scripts/sync-rules.py renders this into each agent's
+# native hooks format (see rules/README.md). This is the only place a hook gets added
+# or removed for the agents this repo manages.
+#
+# Ported from ~/dotfiles/claude/base/settings.json's PreToolUse hooks — Codex's hook
+# stdin payload and blocking convention are identical to Claude's (exit 2 + reason on
+# stderr blocks the call; the command is read from `.tool_input.command`), confirmed
+# against https://developers.openai.com/codex/hooks — so the guard bodies port as-is.
+#
+# Fields:
+#   id      -- stable identifier; embedded as a leading shell comment in the rendered
+#              command so link/unlink can find and remove only this repo's own entries
+#              without disturbing hand-written ones in the same file.
+#   event   -- hook event name (currently only PreToolUse is used here)
+#   matcher -- tool name to match, e.g. "Bash"
+#   command -- shell run via the hook's command handler; exit 2 + stderr blocks the call
+
+[[hooks]]
+id = "block-rm-rf"
+event = "PreToolUse"
+matcher = "Bash"
+command = '''CMD=$(jq -r '.tool_input.command'); if echo "$CMD" | grep -qiE '(^|;[[:space:]]*|&&[[:space:]]*|[|][|][[:space:]]*|[|][[:space:]]*)rm[[:space:]]' && echo "$CMD" | grep -qiE '(^|[[:space:]])-[a-zA-Z]*[rR]|--recursive' && echo "$CMD" | grep -qiE '(^|[[:space:]])-[a-zA-Z]*[fF]|--force'; then echo 'BLOCKED: Use trash instead of rm -rf' >&2; exit 2; fi'''
+
+[[hooks]]
+id = "block-push-main"
+event = "PreToolUse"
+matcher = "Bash"
+command = '''CMD=$(jq -r '.tool_input.command'); if echo "$CMD" | grep -qE 'git[[:space:]]+push.*(main|master)'; then echo 'BLOCKED: Use feature branches, not direct push to main' >&2; exit 2; fi'''

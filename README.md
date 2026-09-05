@@ -53,7 +53,17 @@ and `codex/config-base.toml` for Codex.
 
 Shared instructions live in `AGENTS.md` — opencode and Antigravity read it
 natively. Claude Code does not, so `CLAUDE.md` starts with `@AGENTS.md` and
-appends Claude-only notes below it.
+appends Claude-only notes below it. That file documents this repo's own
+conventions; it's separate from `rules/`, below, which is personal/global.
+
+Global behavioral guidance and safety hooks live once in `rules/`: `rules/claude/` is a
+vendored, byte-for-byte copy of `~/dotfiles/claude/base` (CLAUDE.md + `rules/*.md`) —
+the actual files dotfiles' stow puts at `~/.claude`, which stays their owner. Airbnb-
+specific rules are deliberately not vendored here. `scripts/sync-rules.py` (`just
+sync-rules claude`) drift-checks the vendored copy against the live `~/.claude` files
+(read-only), and (`just codex link`) concatenates that same corpus into
+`~/.codex/AGENTS.md` + `~/.codex/hooks.json` — content Codex never had before. See
+`rules/README.md`.
 
 Shared memory across every CLI is [basic-memory](https://github.com/basicmachines-co/basic-memory) — plain Markdown under
 `memory/`, committed like any other file, registered as the `ai-workspace`
@@ -126,6 +136,14 @@ name, different repo, different job. Neither one touches
   `https://ollama.com/library/<name>/tags` before pinning it. See `ollama/README.md` for
   what network calls Ollama actually makes, and why models are checked against an allowlist
   before every pull.
+- Codex's sandbox is native-only: an OS-level sandbox (`sandbox_mode`,
+  `sandbox_workspace_write.network_access`) plus `shell_environment_policy`'s built-in
+  scrubbing of `KEY`/`SECRET`/`TOKEN`-named env vars. It has no credential-masking egress
+  proxy like Claude Code's (no `sandbox.credentials`/`injectHosts`/`tlsTerminate`
+  equivalent), so a secret in a Codex session's environment reaches whatever host
+  `network_access` allows as its real value — a standing difference from the Claude
+  sandbox posture managed in `~/dev/anthony-marquez/secret-sandbox-scaffold`, not
+  something fixable from `codex/config-base.toml` alone.
 
 ## Platform support
 
