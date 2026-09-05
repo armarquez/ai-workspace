@@ -11,9 +11,18 @@
 # Only keys Codex accepts in a *project* layer belong here. It ignores (and
 # warns about) openai_base_url, chatgpt_base_url, model_provider,
 # model_providers, notify, profile, profiles and otel in a project file.
-# mcp_servers, approval_policy and sandbox_mode are all fine.
+# mcp_servers, approval_policy, sandbox_mode, sandbox_workspace_write and
+# shell_environment_policy are all fine.
 #
 # Reference: https://developers.openai.com/codex/config-reference
+#
+# Sandboxing here is Codex's own OS-level sandbox + env-var scrubbing — there is no
+# credential-masking egress proxy like Claude Code's (no sandbox.credentials /
+# injectHosts / tlsTerminate equivalent), confirmed against OpenAI's docs. Any secret
+# in a Codex session's environment reaches whatever host network_access permits as
+# its real value. That is a standing difference from the Claude sandbox posture this
+# repo also manages (see ~/dev/anthony-marquez/secret-sandbox-scaffold), not something
+# fixable in config.
 
 # workspace-write is Codex's own default; pinned here so it is explicit and
 # survives a change of default upstream. read-only is the paranoid setting;
@@ -23,3 +32,13 @@ sandbox_mode = "workspace-write"
 # on-request = Codex asks before doing something the sandbox would block.
 # "untrusted" asks for far more, "never" asks for nothing.
 approval_policy = "on-request"
+
+[sandbox_workspace_write]
+# false is Codex's own default under workspace-write; pinned explicitly so it survives
+# a change of default upstream. Flip only when a task genuinely needs outbound network.
+network_access = false
+
+[shell_environment_policy]
+# false keeps Codex's built-in exclusion of KEY/SECRET/TOKEN-named env vars from
+# subprocess environments — the closest native equivalent to credential scoping Codex has.
+ignore_default_excludes = false

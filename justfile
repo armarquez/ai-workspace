@@ -17,6 +17,7 @@ bootstrap:
     mise reshim
     just install-hooks
     just sync-mcp
+    just sync-rules
     just doctor
 
 # Install git pre-commit hooks (run once after cloning; safe to re-run) — --overwrite drops any global-template legacy hook
@@ -39,11 +40,21 @@ doctor:
     just opencode check || status=1
     just codex check || status=1
     just ollama check || status=1
+    just check-rules || status=1
     exit $status
 
 # Render .mcp.json, .agents/mcp_config.json, and opencode.json from mcp/servers.toml
 sync-mcp:
     uv run scripts/sync-mcp.py render
+
+# Render rules/claude/ and rules/codex/ from rules/master/ — repo-local only, no $HOME writes.
+# Override the folders with --input/--output, e.g. to test against a throwaway copy.
+sync-rules *args:
+    uv run scripts/sync-rules.py render {{ args }}
+
+# Verify rules/master/ (rendered as rules/claude/) still matches live ~/.claude. Never mutates.
+check-rules *args:
+    uv run scripts/sync-rules.py check {{ args }}
 
 # Register this repo's MCP servers in every provider's global ($HOME) config (opt-in; default never leaves this repo)
 link-global:

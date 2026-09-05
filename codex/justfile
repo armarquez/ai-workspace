@@ -60,16 +60,30 @@ check:
         echo "  ⚠ .codex/config.toml missing — run: just sync-mcp"
         status=1
     fi
+    # Rules + hooks are opt-in via `just codex link` — report status, never mutate.
+    codex_home="${CODEX_HOME:-$HOME/.codex}"
+    if [ -f "$codex_home/AGENTS.md" ] && grep -q '<!-- BEGIN ai-workspace rules -->' "$codex_home/AGENTS.md" 2>/dev/null; then
+        echo "  ✓ ~/.codex/AGENTS.md has the ai-workspace rules block"
+    else
+        echo "  ~ ~/.codex/AGENTS.md has no ai-workspace rules block — run: just codex link"
+    fi
+    if [ -f "$codex_home/hooks.json" ] && grep -q 'ai-workspace:' "$codex_home/hooks.json" 2>/dev/null; then
+        echo "  ✓ ~/.codex/hooks.json has ai-workspace hooks"
+    else
+        echo "  ~ ~/.codex/hooks.json has no ai-workspace hooks — run: just codex link"
+    fi
     exit $status
 
 # List MCP servers Codex resolves, across the merged global + repo config
 mcp:
     cd '{{ justfile_directory() }}' && codex mcp list
 
-# Register this repo's MCP servers in Codex's global config (~/.codex/config.toml)
+# Register this repo's MCP servers + rules/hooks in Codex's global config (~/.codex/)
 link:
     cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py link codex
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-rules.py link codex
 
-# Remove this repo's MCP servers from the global Codex config
+# Remove this repo's MCP servers + rules/hooks from the global Codex config
 unlink:
     cd '{{ justfile_directory() }}' && uv run scripts/sync-mcp.py unlink codex
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-rules.py unlink codex
