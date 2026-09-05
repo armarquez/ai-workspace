@@ -1,0 +1,8 @@
+{
+  "profiles": [
+    { "name": "claude", "program": "op run --env-file=secrets.env -- claude" },
+    { "name": "codex", "program": "codex" },
+    { "name": "opencode", "program": "op run --env-file=secrets.env -- opencode" },
+    { "name": "antigravity", "program": "op run --env-file=secrets.env -- agy" }
+  ]
+}

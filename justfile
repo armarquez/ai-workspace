@@ -3,6 +3,7 @@ mod antigravity
 mod opencode
 mod codex
 mod ollama
+mod squad
 
 default:
     @just --list
@@ -40,6 +41,7 @@ doctor:
     just opencode check || status=1
     just codex check || status=1
     just ollama check || status=1
+    just squad check || status=1
     just check-rules || status=1
     exit $status
 
@@ -63,6 +65,7 @@ link-global:
     just opencode link
     just codex link
     just ollama link
+    just squad link
 
 # Reverse link-global
 unlink-global:
@@ -71,6 +74,7 @@ unlink-global:
     just opencode unlink
     just codex unlink
     just ollama unlink
+    just squad unlink
 
 # Stop background processes started by this repo's recipes (currently: `ollama serve`)
 down:

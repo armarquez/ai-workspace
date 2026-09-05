@@ -20,6 +20,7 @@ just antigravity start     # agy — Google's replacement for the retired Gemini
 just opencode start        # OpenRouter spillover, or any of its 75+ providers
 just codex start           # OpenAI Codex, on a ChatGPT plan
 just local                 # opencode + Ollama, fully offline
+just squad start           # claude-squad — several of the above in parallel worktrees
 ```
 
 ## Layout
@@ -68,6 +69,9 @@ sync-rules claude`) drift-checks the vendored copy against the live `~/.claude` 
 Shared memory across every CLI is [basic-memory](https://github.com/basicmachines-co/basic-memory) — plain Markdown under
 `memory/`, committed like any other file, registered as the `ai-workspace`
 project by `just doctor`.
+
+`squad/` runs several of the providers above in parallel via claude-squad — see
+[Parallel agents via claude-squad](#parallel-agents-via-claude-squad), below.
 
 ## Secrets
 
@@ -145,6 +149,38 @@ name, different repo, different job. Neither one touches
   sandbox posture managed in `~/dev/anthony-marquez/secret-sandbox-scaffold`, not
   something fixable from `codex/config-base.toml` alone.
 
+## Parallel agents via claude-squad
+
+[claude-squad](https://github.com/smtg-ai/claude-squad) (`squad/`) runs several of the
+provider CLIs above in parallel, each in its own tmux session + git worktree — the tooling
+behind the `wt switch <branch>` convention already stated in `rules/master/CLAUDE.md`'s
+"Parallel subagents require worktrees" rule.
+
+```sh
+just squad start   # launches the claude-squad TUI against this repo
+```
+
+Inside it, `n`/`N` create a session (with an optional prompt), `↵`/`o` attach, `ctrl-q`
+detaches, `s` commits and pushes, `tab` toggles the diff pane. Each new session picks a
+profile — `squad/config.json` defines one per provider (`claude`, `codex`, `opencode`,
+`antigravity`), each the same command that provider's own `start` recipe runs, minus the
+`cd` that recipe does: a claude-squad tmux pane already starts inside its own worktree,
+which has its own copy of `secrets.env` since that's a tracked file.
+
+`just squad link` merges those profiles into `~/.claude-squad/config.json` (additive,
+backed up first, like every other `link`); `just squad check` verifies `claude-squad`,
+`tmux`, and `gh` are installed and that the profiles are present, without mutating anything.
+
+Two things worth knowing before relying on it:
+
+- Each tmux pane's `op run` resolves its own 1Password session. Running several profile
+  sessions in parallel can mean several independent auth prompts unless a session token is
+  already exported in the shell claude-squad itself launches from (see Secrets, above).
+- `gh` is a hard requirement for claude-squad and is now pinned in `mise.toml`, but on this
+  machine an Airbnb-forked `gh` earlier in `PATH` still wins — `just squad check` reports
+  which one actually resolves. Harmless here (this repo is a personal github.com repo), but
+  worth knowing before assuming the pin is authoritative.
+
 ## Platform support
 
 Tested on macOS and WSL (Windows Subsystem for Linux) — WSL is real Linux, so every recipe here
@@ -163,3 +199,5 @@ WSL-specific notes:
   doctor` checks `ollama` specifically and warns if it resolves under `/mnt/`.
 - 1Password's biometric desktop-app integration doesn't bridge into WSL — `op signin`/`op run`
   still work, just via typed master password + Secret Key instead of Touch ID/Windows Hello.
+- claude-squad itself has no native Windows build; its README points Windows users at WSL,
+  consistent with this repo's existing WSL-yes/native-Windows-no stance — no new gap here.

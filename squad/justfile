@@ -1,0 +1,57 @@
+# claude-squad — parallel agent sessions, each in its own tmux session + git worktree.
+# Orchestrates the other provider modules rather than being one itself: each profile in
+# squad/config.json is one provider's own launch command (op run wrapper included where
+# that provider's own `start` recipe uses one), minus the `cd` those recipes do — a
+# claude-squad tmux pane already starts inside its own worktree, which has its own copy
+# of secrets.env since that's a tracked file.
+
+# Launch the claude-squad TUI against this repo
+start:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    claude-squad
+
+# Verify install, PATH resolution, and the global config. Never mutates anything
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    status=0
+    if command -v claude-squad >/dev/null 2>&1; then
+        echo "✓ claude-squad ($(claude-squad version 2>&1 | head -1))"
+    else
+        echo "✗ claude-squad not found — run: mise install"
+        status=1
+    fi
+    if command -v tmux >/dev/null 2>&1; then
+        echo "✓ tmux ($(tmux -V))"
+    else
+        echo "✗ tmux not found — run: mise install"
+        status=1
+    fi
+    if command -v gh >/dev/null 2>&1; then
+        echo "✓ gh ($(gh --version | head -1))"
+        case "$(command -v gh)" in
+        */mise/*) ;;
+        *) echo "  ~ resolves to $(command -v gh), not the mise-managed install — a PATH entry earlier than mise's shims wins on this machine" ;;
+        esac
+    else
+        echo "✗ gh not found — run: mise install"
+        status=1
+    fi
+    config="$HOME/.claude-squad/config.json"
+    if [ -f "$config" ] && grep -q '"antigravity"' "$config" 2>/dev/null; then
+        echo "✓ ~/.claude-squad/config.json has this repo's profiles"
+    else
+        echo "~ ~/.claude-squad/config.json missing this repo's profiles — run: just squad link"
+    fi
+    exit $status
+
+# Merge squad/config.json's profiles into ~/.claude-squad/config.json
+link:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-squad.py link
+
+# Remove this repo's profiles from the global claude-squad config
+unlink:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-squad.py unlink
