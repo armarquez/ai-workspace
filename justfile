@@ -4,6 +4,7 @@ mod opencode
 mod codex
 mod ollama
 mod squad
+mod onboard
 
 default:
     @just --list
