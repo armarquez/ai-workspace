@@ -3,7 +3,20 @@
 Bootstraps a dev machine to work with several AI coding CLIs, so work can
 move to another provider when tokens run low, ending in a fully local
 fallback. Everything is pinned in this repo; the host only needs `mise`,
-`direnv`, and `op` (1Password CLI).
+`direnv`, and `op` (1Password CLI) — none of these three are managed by
+`mise` itself, so install them first:
+
+- macOS: `brew install mise direnv 1password-cli`
+- Linux: `mise` and `direnv` via their own install scripts (see
+  [mise](https://mise.jdx.dev/getting-started.html) /
+  [direnv](https://direnv.net/docs/installation.html)); `op` via the apt repo
+  in [1Password's Linux install docs](https://developer.1password.com/docs/cli/get-started/#install)
+- WSL: `mise`/`direnv` as above (inside WSL); for `op`, install the
+  **Windows-side** 1Password CLI instead — `winget install 1password-cli`
+  (run from PowerShell/cmd, not WSL). WSL shares the Windows `PATH`, so it
+  resolves as `op.exe`, and every recipe here prefers `op.exe` when present
+  since it comes with the desktop app's biometric integration already wired
+  up. See § WSL-specific notes.
 
 See [docs/](./docs/README.md) for the architecture, a full recipe reference, and a
 walkthrough onboarding another repo onto this toolkit.
@@ -204,7 +217,12 @@ WSL-specific notes:
 - WSL shares the Windows `PATH` by default, so a separately-installed Windows-side binary (most
   likely Ollama's own desktop app) can shadow the WSL/mise-managed one of the same name. `just
   doctor` checks `ollama` specifically and warns if it resolves under `/mnt/`.
-- 1Password's biometric desktop-app integration doesn't bridge into WSL — `op signin`/`op run`
-  still work, just via typed master password + Secret Key instead of Touch ID/Windows Hello.
+- 1Password's biometric desktop-app integration doesn't bridge into a Linux-installed `op` inside
+  WSL. Install the CLI on the **Windows side** instead (`winget install 1password-cli`) — WSL
+  shares the Windows `PATH`, so it resolves as `op.exe`, and `just doctor` / every `start` recipe
+  prefers `op.exe` over a Linux `op` for exactly this reason. `op.exe account list` (not
+  `op.exe whoami`) is what actually reflects desktop-integration auth state — `whoami` needs a
+  session from an explicit `op signin`, which the desktop app's per-call biometric prompts never
+  create.
 - claude-squad itself has no native Windows build; its README points Windows users at WSL,
   consistent with this repo's existing WSL-yes/native-Windows-no stance — no new gap here.

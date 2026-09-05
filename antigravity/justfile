@@ -7,7 +7,11 @@ start:
     #!/usr/bin/env bash
     set -euo pipefail
     cd '{{ justfile_directory() }}'
-    op run --env-file=secrets.env -- agy
+    # WSL shares the Windows PATH, so a Windows-installed 1Password CLI
+    # resolves as `op.exe`, not `op` — see scripts/doctor.sh's op_cmd().
+    op=op.exe
+    command -v op.exe >/dev/null 2>&1 || op=op
+    "$op" run --env-file=secrets.env -- agy
 
 # Verify install without changing anything
 check:
