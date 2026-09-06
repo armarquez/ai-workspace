@@ -7,11 +7,14 @@ subject. Nothing here is infra-specific advice; swap in any other repo's path.
 
 `infra` isn't starting from zero. Its most recent commit is *"Add secret key architecture
 doc and agent sandbox policy"* — it already has its own `mise.toml`, `direnv`, `CLAUDE.md`,
-and a `.claude/` sandbox policy. It already works with Claude Code, on its own.
+a `.claude/` sandbox policy, and its own `secrets.env` (own vault refs, resolved by its own
+`scripts/agent-session.sh` wrapper — a separate scaffold, unrelated to ai-workspace's
+`secrets.env`). It already works with Claude Code, on its own.
 
 | | infra already has | ai-workspace adds |
 |---|---|---|
 | Claude Code | ✓ own toolchain, own sandbox policy | — |
+| `secrets.env` (op:// refs, no real secrets) | ✓ own vault, own `agent-session.sh` wrapper — currently empty of refs | the agent-CLI refs (`ANTHROPIC_API_KEY` etc.) those new providers need, appended by hand — see Step 2 |
 | Codex, opencode, Antigravity | ✗ | ✓ |
 | Parallel agent sessions | ✗ | ✓ (claude-squad) |
 | `AGENTS.md` (generic, non-Claude-specific instructions) | ✗ | ✓ (`just onboard agents-md`) |
@@ -19,8 +22,9 @@ and a `.claude/` sandbox policy. It already works with Claude Code, on its own.
 | `basic-memory` in `.mcp.json` | ✗ | ✓ (`just onboard mcp`) |
 
 So this walkthrough's job is narrow: give `infra` the providers it doesn't have, the
-generic-instructions file other providers read natively, and the ability to run several
-providers at once, each in its own worktree.
+generic-instructions file other providers read natively, the op:// refs those providers
+need in infra's own `secrets.env`, and the ability to run several providers at once, each
+in its own worktree.
 
 ## Prerequisite
 
@@ -57,17 +61,42 @@ version) is reported, never silently resolved.
 
 ## Step 2 — one extra agent on infra
 
-`infra` has no `secrets.env` of its own, so the path has to be absolute:
+Codex/opencode/Antigravity need the same `ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY` op://
+refs ai-workspace's own `secrets.env` defines. Which path to take depends on whether the
+target repo already has a `secrets.env` of its own — two different situations, both
+covered below.
+
+**If the target has no `secrets.env` at all**, there's nothing local to add the refs to,
+so point `op run` at ai-workspace's absolute path instead:
 
 ```sh
-cd ~/dev/armarquez/infra
+cd ~/dev/armarquez/some-other-repo
 op run --env-file=~/dev/armarquez/ai-workspace/secrets.env -- codex
 ```
 
-Same idea for opencode or Antigravity — swap `codex` for `opencode`/`agy` and add
-`--env-file`'s absolute path, exactly as each provider's own `start` recipe does it (see
-[recipes.md](./recipes.md)), just without the `cd` that recipe would do to ai-workspace's
-own root.
+**`infra` already has its own `secrets.env`** (added by a separate scaffold, for infra's
+own secrets — see the table above), just not these refs yet. Append them there instead of
+reaching for an absolute path:
+
+```sh
+# infra/secrets.env
+ANTHROPIC_API_KEY=op://Personal/Anthropic API/credential
+```
+
+Then run with a plain relative path, same as ai-workspace's own `start` recipes do:
+
+```sh
+cd ~/dev/armarquez/infra
+op run --env-file=secrets.env -- codex
+```
+
+Same idea for opencode/Antigravity — swap `codex` for `opencode`/`agy`.
+
+**Caveat:** infra's own `scripts/agent-session.sh` wrapper only launches `claude`, with a
+`--settings .claude/sandbox-policy.json` flag that's Claude-specific. The commands above
+bypass that wrapper — and its sandbox policy — entirely for codex/opencode/antigravity.
+Extending the wrapper to cover them is a separate, infra-specific change; this walkthrough
+doesn't do it for you.
 
 ## Step 3 — parallel agents on infra via claude-squad
 
@@ -82,17 +111,25 @@ claude-squad
 
 **One adjustment first.** `squad/config.json`'s checked-in profiles point at a *relative*
 `secrets.env`, which resolves correctly inside an ai-workspace worktree (every worktree
-gets its own copy, since it's a tracked file) but not inside an `infra` worktree — `infra`
-has no `secrets.env` at all. Open `~/.claude-squad/config.json` and give `infra`'s
-profiles an absolute path instead:
+gets its own copy, since it's a tracked file) — and, once Step 2's refs are appended to
+`infra/secrets.env`, resolves just as correctly inside an `infra` worktree too, since that
+file is tracked there as well. Open `~/.claude-squad/config.json` and copy `infra`'s
+profiles over verbatim, same relative path and all:
 
 ```json
 {
   "profiles": [
-    { "name": "claude", "program": "op run --env-file=/Users/you/dev/armarquez/ai-workspace/secrets.env -- claude" },
+    { "name": "claude", "program": "op run --env-file=secrets.env -- claude" },
     { "name": "codex",  "program": "codex" }
   ]
 }
+```
+
+Only reach for an absolute path if the target genuinely has no `secrets.env` of its own
+(see Step 2's other case):
+
+```json
+{ "name": "claude", "program": "op run --env-file=/Users/you/dev/armarquez/ai-workspace/secrets.env -- claude" }
 ```
 
 This is a per-target-repo edit, made once, by hand — not something `just squad link`
