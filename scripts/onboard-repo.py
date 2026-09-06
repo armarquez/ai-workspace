@@ -139,6 +139,17 @@ def _target_tools_table(target_mise: Path) -> dict[str, str]:
     return {_tool_basename(key): value for key, value in raw.items()}
 
 
+def _own_version(line: str) -> str:
+    """Extract the pinned version from one of this repo's own mise.toml lines.
+    Matches the quoted value after `=`, not just the first quoted substring —
+    a backend-qualified key like `"github:armarquez/claude-squad"` is itself
+    quoted, so a naive "first quoted string in the line" match would grab the
+    key instead of the version."""
+    match = re.search(r'=\s*"([^"]+)"', line)
+    assert match, f"malformed mise.toml line: {line!r}"
+    return match.group(1)
+
+
 def _plan_mise_tools(target: Path) -> tuple[list[str], list[str]]:
     """Returns (lines_to_insert, report_lines)."""
     own_lines = _own_tool_lines()
@@ -158,14 +169,12 @@ def _plan_mise_tools(target: Path) -> tuple[list[str], list[str]]:
             report.append(
                 f"+ {name}: missing from target — would add {own_lines[name].strip()}"
             )
-        elif str(target_tools[name]) == re.search(r'"([^"]+)"', own_lines[name]).group(
-            1
-        ):
+        elif str(target_tools[name]) == _own_version(own_lines[name]):
             report.append(f"= {name}: already present, same version")
         else:
             report.append(
                 f"! {name}: already present at {target_tools[name]!r}, "
-                f"ai-workspace pins {re.search(r'\"([^\"]+)\"', own_lines[name]).group(1)!r} — "
+                f"ai-workspace pins {_own_version(own_lines[name])!r} — "
                 "conflict, not touching it, reconcile by hand"
             )
     return to_insert, report
