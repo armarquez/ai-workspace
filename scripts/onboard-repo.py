@@ -109,6 +109,14 @@ def cmd_agents_md(target: Path, apply: bool) -> None:
 # --- mise-tools ----------------------------------------------------------------
 
 
+def _tool_basename(key: str) -> str:
+    """A mise.toml tool key may be a backend-qualified spec like
+    `github:armarquez/claude-squad` rather than a bare registry name like
+    `claude-squad` — match AGENT_TOOLS against the name after the last `/`,
+    so a fork pinned via a non-default backend is still recognized."""
+    return key.rsplit("/", 1)[-1]
+
+
 def _own_tool_lines() -> dict[str, str]:
     """Map tool name -> its exact source line (version + trailing comment) in this
     repo's own mise.toml, so a target repo's file carries the same provenance comment
@@ -118,7 +126,7 @@ def _own_tool_lines() -> dict[str, str]:
         match = re.match(r'^([A-Za-z0-9_.-]+|"[^"]+")\s*=\s*"([^"]+)"', line)
         if not match:
             continue
-        name = match.group(1).strip('"')
+        name = _tool_basename(match.group(1).strip('"'))
         if name in AGENT_TOOLS:
             lines[name] = line
     return lines
@@ -127,7 +135,8 @@ def _own_tool_lines() -> dict[str, str]:
 def _target_tools_table(target_mise: Path) -> dict[str, str]:
     if not target_mise.exists():
         return {}
-    return tomllib.loads(target_mise.read_text()).get("tools", {})
+    raw = tomllib.loads(target_mise.read_text()).get("tools", {})
+    return {_tool_basename(key): value for key, value in raw.items()}
 
 
 def _plan_mise_tools(target: Path) -> tuple[list[str], list[str]]:
