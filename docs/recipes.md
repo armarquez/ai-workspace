@@ -110,8 +110,11 @@ there yourself. Not added to `just doctor`'s fan-out or `link-global`/`unlink-gl
 - **`secrets.env` travels with every worktree.** It's a tracked file, so `op
   run --env-file=secrets.env` (a *relative* path) still resolves correctly from inside a
   claude-squad worktree of *this* repo — each worktree gets its own copy. It does **not**
-  resolve from a worktree of a different repo (like `infra`) — that repo has no
-  `secrets.env` of its own. [onboarding-a-repo.md](./onboarding-a-repo.md) covers the fix.
+  resolve from a worktree of a different repo (like `infra`) *unless* that repo already
+  defines the same `KEY=op://...` refs the agent-CLI needs in its own `secrets.env` — and
+  a target repo having its own `secrets.env` for its own purposes (`infra` does — see
+  [onboarding-a-repo.md](./onboarding-a-repo.md#step-2--one-extra-agent-on-infra)) doesn't mean those refs are
+  already in it. [onboarding-a-repo.md](./onboarding-a-repo.md) covers both cases.
 - **`gh` may not resolve to the mise-pinned version.** `squad check` reports this
   explicitly rather than assuming the pin won: a `PATH` entry earlier than mise's shims
   (an Airbnb-forked `gh`, on this machine) can still win. Harmless for a personal
