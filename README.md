@@ -174,7 +174,11 @@ name, different repo, different job. Neither one touches
 [claude-squad](https://github.com/smtg-ai/claude-squad) (`squad/`) runs several of the
 provider CLIs above in parallel, each in its own tmux session + git worktree — the tooling
 behind the `wt switch <branch>` convention already stated in `rules/master/CLAUDE.md`'s
-"Parallel subagents require worktrees" rule.
+"Parallel subagents require worktrees" rule. `mise.toml` pins
+[armarquez/claude-squad](https://github.com/armarquez/claude-squad), a fork that adds
+Forgejo/`tea` CLI support (upstream only speaks GitHub/`gh`) as a patch kept easy to rebase
+on top of upstream — see that repo's `justfile` (`sync-upstream`) for pulling in upstream
+changes.
 
 ```sh
 just squad start   # launches the claude-squad TUI against this repo
@@ -196,10 +200,13 @@ Two things worth knowing before relying on it:
 - Each tmux pane's `op run` resolves its own 1Password session. Running several profile
   sessions in parallel can mean several independent auth prompts unless a session token is
   already exported in the shell claude-squad itself launches from (see Secrets, above).
-- `gh` is a hard requirement for claude-squad and is now pinned in `mise.toml`, but on this
+- `gh` is required for GitHub-hosted worktrees and is pinned in `mise.toml`, but on this
   machine an Airbnb-forked `gh` earlier in `PATH` still wins — `just squad check` reports
   which one actually resolves. Harmless here (this repo is a personal github.com repo), but
   worth knowing before assuming the pin is authoritative.
+- Forgejo-hosted worktrees use `tea` instead of `gh` (the fork detects the host from each
+  worktree's `origin` remote). `tea` isn't mise-managed here — see `infra`'s `install-tea`
+  recipe — since it's a host-level tool shared across repos, not specific to this one.
 
 ## Platform support
 

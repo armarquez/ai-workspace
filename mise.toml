@@ -16,9 +16,9 @@ codex    = "0.149.1"    # https://github.com/openai/codex/releases — tags are 
 ollama   = "0.32.14"    # https://github.com/ollama/ollama/releases — see ollama/README.md if install fails
 prek     = "0.4.13"     # https://github.com/j178/prek/releases — pre-commit hook runner
 gitleaks = "8.30.1"     # https://github.com/gitleaks/gitleaks/releases — also used standalone via `gitleaks detect`
-claude-squad = "1.0.20" # https://github.com/smtg-ai/claude-squad/releases — parallel agent sessions, see squad/
+"github:armarquez/claude-squad" = "1.0.21" # our fork (adds Forgejo/tea CLI support) of https://github.com/smtg-ai/claude-squad — parallel agent sessions, see squad/
 tmux     = "3.7c"       # https://github.com/tmux/tmux-builds/releases — required by claude-squad
-gh       = "2.100.0"    # https://cli.github.com — required by claude-squad
+gh       = "2.100.0"    # https://cli.github.com — required by claude-squad for GitHub-hosted repos; Forgejo-hosted repos use `tea` instead (not mise-managed, see infra's justfile)
 
 "pipx:basic-memory" = "0.22.1"  # https://pypi.org/project/basic-memory/
 
