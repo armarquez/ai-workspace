@@ -5,18 +5,23 @@
 """Merge squad/config.json's profiles into claude-squad's global config.
 
 Usage:
-    sync-squad.py link   [--config PATH]   merge profiles into ~/.claude-squad/config.json
-    sync-squad.py unlink [--config PATH]   remove only the profiles this repo added
+    sync-squad.py link   [--config PATH] [--profiles-file PATH]
+    sync-squad.py unlink [--config PATH] [--profiles-file PATH]
 
 squad/config.json is already claude-squad's own native format (confirmed against the real
 binary, not secondhand docs — `claude-squad debug` round-trips a `profiles` array of
 {name, program} unchanged), so there is no render step, only a merge: `link` adds/replaces
-each profile by `name`; `unlink` removes only the names squad/config.json defines, leaving
+each profile by `name`; `unlink` removes only the names the profiles file defines, leaving
 everything else in ~/.claude-squad/config.json (default_program, auto_yes, branch_prefix,
 any hand-added profiles) untouched.
 
 --config lets link/unlink run against a throwaway file instead of the real
 ~/.claude-squad/config.json, for testing.
+
+--profiles-file points at a different profiles source than this repo's own
+squad/config.json — e.g. `onboard-repo.py squad`'s generated
+`<target>/.ai-workspace/squad-profiles.json`, so the same merge-by-name logic covers both
+ai-workspace's own profiles and a target repo's.
 """
 
 import datetime
@@ -29,12 +34,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_FILE = REPO_ROOT / "squad" / "config.json"
 
 
-def our_profiles() -> list[dict]:
-    return json.loads(TEMPLATE_FILE.read_text())["profiles"]
+def our_profiles(template_file: Path = TEMPLATE_FILE) -> list[dict]:
+    return json.loads(template_file.read_text())["profiles"]
 
 
-def our_names() -> set[str]:
-    return {p["name"] for p in our_profiles()}
+def our_names(template_file: Path = TEMPLATE_FILE) -> set[str]:
+    return {p["name"] for p in our_profiles(template_file)}
 
 
 def default_config_path() -> Path:
@@ -56,22 +61,22 @@ def write_json(path: Path, data: dict) -> None:
     print(f"wrote {path}")
 
 
-def cmd_link(config_path: Path) -> None:
+def cmd_link(config_path: Path, profiles_file: Path = TEMPLATE_FILE) -> None:
     existing = json.loads(config_path.read_text()) if config_path.exists() else {}
     profiles = list(existing.get("profiles", []))
-    kept = [p for p in profiles if p.get("name") not in our_names()]
+    kept = [p for p in profiles if p.get("name") not in our_names(profiles_file)]
     existing = dict(existing)
-    existing["profiles"] = kept + our_profiles()
+    existing["profiles"] = kept + our_profiles(profiles_file)
     backup(config_path)
     write_json(config_path, existing)
 
 
-def cmd_unlink(config_path: Path) -> None:
+def cmd_unlink(config_path: Path, profiles_file: Path = TEMPLATE_FILE) -> None:
     if not config_path.exists():
         return
     data = json.loads(config_path.read_text())
     profiles = data.get("profiles", [])
-    kept = [p for p in profiles if p.get("name") not in our_names()]
+    kept = [p for p in profiles if p.get("name") not in our_names(profiles_file)]
     if len(kept) == len(profiles):
         return
     data = dict(data)
@@ -83,25 +88,29 @@ def cmd_unlink(config_path: Path) -> None:
     write_json(config_path, data)
 
 
-def _parse_flags(args: list[str]) -> Path:
+def _parse_flags(args: list[str]) -> tuple[Path, Path]:
     config_path = default_config_path()
+    profiles_file = TEMPLATE_FILE
     it = iter(args)
     for arg in it:
-        if arg != "--config":
-            sys.exit(f"unknown flag: {arg}")
         value = next(it, None)
         if value is None:
-            sys.exit("--config requires a value")
-        config_path = Path(value)
-    return config_path
+            sys.exit(f"{arg} requires a value")
+        if arg == "--config":
+            config_path = Path(value)
+        elif arg == "--profiles-file":
+            profiles_file = Path(value).expanduser().resolve()
+        else:
+            sys.exit(f"unknown flag: {arg}")
+    return config_path, profiles_file
 
 
 def main() -> None:
     match sys.argv[1:]:
         case ["link", *rest]:
-            cmd_link(_parse_flags(rest))
+            cmd_link(*_parse_flags(rest))
         case ["unlink", *rest]:
-            cmd_unlink(_parse_flags(rest))
+            cmd_unlink(*_parse_flags(rest))
         case _:
             sys.exit(__doc__)
 
