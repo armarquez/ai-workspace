@@ -20,7 +20,7 @@ gitleaks = "8.30.1"     # https://github.com/gitleaks/gitleaks/releases — also
 tmux     = "3.7c"       # https://github.com/tmux/tmux-builds/releases — required by claude-squad
 gh       = "2.100.0"    # https://cli.github.com — required by claude-squad for GitHub-hosted repos; Forgejo-hosted repos use `tea` instead (not mise-managed, see infra's justfile)
 
-"pipx:basic-memory" = "0.22.1"  # https://pypi.org/project/basic-memory/
+"pipx:basic-memory" = "0.23.2"  # https://pypi.org/project/basic-memory/ — keep in sync with mcp/servers.toml's uvx pin
 
 [env]
 OLLAMA_API_BASE = "http://127.0.0.1:11434"
