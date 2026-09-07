@@ -3,12 +3,13 @@
 # requires-python = ">=3.13"
 # ///
 """Bring an existing repo onto this toolkit: CLAUDE.md -> AGENTS.md, agent-CLI tool pins
-in its mise.toml, and mcp/servers.toml's servers in its .mcp.json.
+in its mise.toml, mcp/servers.toml's servers in its .mcp.json, and claude-squad profiles.
 
 Usage:
     onboard-repo.py agents-md   <target> [--apply]
     onboard-repo.py mise-tools  <target> [--apply]
     onboard-repo.py mcp         <target> [--apply]
+    onboard-repo.py squad       <target> [--apply]
     onboard-repo.py all         <target> [--apply]
     onboard-repo.py check       <target>
 
@@ -34,6 +35,8 @@ import tomllib
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MISE_FILE = REPO_ROOT / "mise.toml"
 SERVERS_FILE = REPO_ROOT / "mcp" / "servers.toml"
+SQUAD_TEMPLATE_FILE = REPO_ROOT / "squad" / "config.json"
+OPENROUTER_REF = "OPENROUTER_API_KEY=op://Personal/OpenRouter API/credential"
 
 # Agent-CLI tools this toolkit contributes to an onboarded repo's mise.toml. Deliberately
 # excludes `ollama` (a separate opt-in fallback tier) and this repo's own scripting deps
@@ -261,6 +264,81 @@ def cmd_mcp(target: Path, apply: bool) -> None:
     print(f"wrote {mcp_json}")
 
 
+# --- squad -------------------------------------------------------------------
+
+
+def _qualified_squad_profiles(target: Path, opencode_program: str) -> list[dict]:
+    own_profiles = json.loads(SQUAD_TEMPLATE_FILE.read_text())["profiles"]
+    qualified = []
+    for profile in own_profiles:
+        program = (
+            opencode_program if profile["name"] == "opencode" else profile["program"]
+        )
+        qualified.append(
+            {"name": f"{target.name}: {profile['name']}", "program": program}
+        )
+    return qualified
+
+
+def _plan_squad(target: Path) -> tuple[str | None, list[dict], list[str]]:
+    """Returns (secrets_env_line_to_append_or_None, profiles, report_lines)."""
+    target_secrets = target / "secrets.env"
+    report = []
+
+    if target_secrets.exists():
+        if OPENROUTER_REF in target_secrets.read_text().splitlines():
+            report.append("= OPENROUTER_API_KEY: already present in target secrets.env")
+            secrets_line = None
+        else:
+            report.append(f"+ OPENROUTER_API_KEY: would add to {target_secrets}")
+            secrets_line = OPENROUTER_REF
+        opencode_program = (
+            "op=op.exe; command -v op.exe >/dev/null 2>&1 || op=op; "
+            "$op run --env-file=secrets.env -- opencode"
+        )
+    else:
+        report.append(
+            f"~ no secrets.env at {target} — opencode profile will use an absolute path"
+        )
+        secrets_line = None
+        opencode_program = (
+            "op=op.exe; command -v op.exe >/dev/null 2>&1 || op=op; "
+            f"$op run --env-file={REPO_ROOT / 'secrets.env'} -- opencode"
+        )
+
+    profiles = _qualified_squad_profiles(target, opencode_program)
+    for profile in profiles:
+        report.append(f"+ profile: {profile['name']}")
+    return secrets_line, profiles, report
+
+
+def cmd_squad(target: Path, apply: bool) -> None:
+    secrets_line, profiles, report = _plan_squad(target)
+    print("\n".join(report))
+
+    if not apply:
+        print("(dry-run — pass --apply to write)")
+        return
+
+    target_secrets = target / "secrets.env"
+    if secrets_line:
+        backup(target_secrets)
+        text = target_secrets.read_text()
+        if not text.endswith("\n"):
+            text += "\n"
+        target_secrets.write_text(text + secrets_line + "\n")
+        print(f"wrote {target_secrets}")
+
+    squad_profiles_json = target / ".ai-workspace" / "squad-profiles.json"
+    backup(squad_profiles_json)
+    squad_profiles_json.parent.mkdir(parents=True, exist_ok=True)
+    squad_profiles_json.write_text(json.dumps({"profiles": profiles}, indent=2) + "\n")
+    print(f"wrote {squad_profiles_json}")
+    print(
+        f"reminder: add {squad_profiles_json.parent.name}/ to {target}'s .gitignore — it's machine-specific"
+    )
+
+
 # --- check -------------------------------------------------------------------
 
 
@@ -311,6 +389,9 @@ def main() -> None:
         case ["mcp", *rest]:
             target, apply = _parse_flags(rest)
             cmd_mcp(resolve_target(target), apply)
+        case ["squad", *rest]:
+            target, apply = _parse_flags(rest)
+            cmd_squad(resolve_target(target), apply)
         case ["all", *rest]:
             target, apply = _parse_flags(rest)
             resolved = resolve_target(target)

@@ -15,6 +15,10 @@ mise-tools target *args:
 mcp target *args:
     cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py mcp {{ target }} {{ args }}
 
+# Generate <target>/.ai-workspace/squad-profiles.json for claude-squad. Dry-run unless --apply.
+squad target *args:
+    cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py squad {{ target }} {{ args }}
+
 # Run agents-md, mise-tools, and mcp together. Dry-run unless --apply.
 all target *args:
     cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py all {{ target }} {{ args }}

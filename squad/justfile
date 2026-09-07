@@ -55,3 +55,11 @@ link:
 # Remove this repo's profiles from the global claude-squad config
 unlink:
     cd '{{ justfile_directory() }}' && uv run scripts/sync-squad.py unlink
+
+# Merge <target>/.ai-workspace/squad-profiles.json (from `just onboard squad`) into ~/.claude-squad/config.json
+link-target target:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-squad.py link --profiles-file {{ target }}/.ai-workspace/squad-profiles.json
+
+# Remove <target>'s profiles from the global claude-squad config
+unlink-target target:
+    cd '{{ justfile_directory() }}' && uv run scripts/sync-squad.py unlink --profiles-file {{ target }}/.ai-workspace/squad-profiles.json
