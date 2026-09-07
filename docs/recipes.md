@@ -21,26 +21,40 @@ mutates), see [conventions.md](./conventions.md).
 | `down` | Stops background processes this repo's recipes started (today: `ollama serve`). |
 | `local` | `ollama serve` + `opencode start` pinned to `ollama/models.toml`'s default — the fully-offline tier. |
 
-## `claude/`, `antigravity/`, `opencode/` — the `op run` providers
+## `opencode/` — the `op run` provider
 
-These three share a shape: `start` wraps the CLI in `op run --env-file=secrets.env`, so the
-real API key exists only in that one child process's environment.
+`opencode` authenticates via OpenRouter, a real pay-per-token API key with no
+subscription alternative — its `start` wraps the CLI in `op run --env-file=secrets.env`,
+so the real key exists only in that one child process's environment.
 
 | Recipe | Does |
 |---|---|
-| `start` | `cd`s to the repo root, then `op run --env-file=secrets.env -- <cli>`. opencode's takes an optional model argument. |
+| `start model=""` | `cd`s to the repo root, then `op run --env-file=secrets.env -- opencode [--model <model>]`. |
 | `check` | Is the binary on `PATH`? Prints its version. Exits 1 if missing. Never mutates. |
+| `link` | `sync-mcp.py link opencode` — merges this repo's MCP servers into opencode's global config, backed up first. |
+| `unlink` | Reverses `link`. |
+| `models` | `opencode models` — lists what's resolvable from the current provider config. No secrets needed; read-only against local config. |
+
+## `claude/`, `codex/`, `antigravity/` — the ones without `op run`
+
+All three authenticate with their own subscription/account login rather than an API key —
+`claude login`, a ChatGPT sign-in via `codex login`, and Google sign-in via `agy` — and for
+`claude`/`codex` the matching env var (`ANTHROPIC_API_KEY`, `CODEX_API_KEY`) *outranks* a
+stored login session, so injecting one via `op run` would silently move billing from the
+plan to per-token usage. `antigravity` reads neither secret at all — wrapping it would
+only add a pointless dependency on 1Password resolving successfully. See each justfile's
+own header comment for the full reasoning.
+
+`claude` and `antigravity` share a simple shape:
+
+| Recipe | Does |
+|---|---|
+| `start` | `cd`s to the repo root, runs the CLI directly. No secrets injected. |
+| `check` | Binary present? Version? Never mutates. |
 | `link` | `sync-mcp.py link <provider>` — merges this repo's MCP servers into that CLI's global config, backed up first. |
 | `unlink` | Reverses `link`. |
 
-opencode also has `models` (`opencode models` — lists what's resolvable from the current
-provider config, no secrets needed since it's read-only against local config).
-
-## `codex/` — the one without `op run`
-
-Codex authenticates with a ChatGPT sign-in (`codex login`), not an API key, so injecting
-`CODEX_API_KEY` would silently move billing from the plan to per-token usage — see
-`codex/justfile`'s own header comment. That's why its `start` has no `op run` wrapper.
+Codex has the same no-`op run` shape, plus its own recipes:
 
 | Recipe | Does |
 |---|---|

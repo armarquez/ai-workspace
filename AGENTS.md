@@ -18,9 +18,11 @@ run low, ending in a fully local fallback.
 - **Toolchain is pinned in `mise.toml`.** Look up current stable versions
   before bumping a pin — do not guess from memory.
 - **Secrets come from 1Password** via `op run --env-file=secrets.env`.
-  `secrets.env` holds `op://` references only, never a real key. Codex is the
-  exception: it signs in with a ChatGPT account, and setting `CODEX_API_KEY`
-  would override that session and move billing to per-token API usage.
+  `secrets.env` holds `op://` references only, never a real key. `claude`,
+  `codex`, and `antigravity` are exceptions: each signs in with its own
+  subscription/account login (`claude login`, ChatGPT, Google), and setting
+  the matching API-key env var would override that session and move billing
+  to per-token API usage — so their `start` recipes have no `op run` wrapper.
 - **Global (`$HOME`) writes are opt-in** via `just link-global` /
   `just <provider> link`, and always back up what they touch. Default
   operation is repo-scoped only.

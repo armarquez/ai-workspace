@@ -1,8 +1,8 @@
 {
   "profiles": [
-    { "name": "claude", "program": "op=op.exe; command -v op.exe >/dev/null 2>&1 || op=op; $op run --env-file=secrets.env -- claude" },
+    { "name": "claude", "program": "claude" },
     { "name": "codex", "program": "codex" },
     { "name": "opencode", "program": "op=op.exe; command -v op.exe >/dev/null 2>&1 || op=op; $op run --env-file=secrets.env -- opencode" },
-    { "name": "antigravity", "program": "op=op.exe; command -v op.exe >/dev/null 2>&1 || op=op; $op run --env-file=secrets.env -- agy" }
+    { "name": "antigravity", "program": "agy" }
   ]
 }

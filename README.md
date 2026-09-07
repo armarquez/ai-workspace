@@ -47,7 +47,7 @@ One folder per provider (`claude/`, `antigravity/`, `opencode/`, `codex/`,
 
 | Recipe | Does |
 |---|---|
-| `start` | Launch the CLI with secrets injected via `op run`. |
+| `start` | Launch the CLI. `opencode` injects secrets via `op run`; `claude`/`codex`/`antigravity` authenticate with their own login instead — see § Toolchain notes. |
 | `check` | Verify install/reachability. Never mutates anything. |
 | `link` | Opt-in: merge this repo's MCP servers into the CLI's global (`$HOME`) config, with a backup. |
 | `unlink` | Reverse `link`. |
@@ -95,10 +95,11 @@ agent-CLI tool pins in its `mise.toml`, `basic-memory` in its `.mcp.json` — se
 
 ## Secrets
 
-`secrets.env` holds only `op://` references (safe to commit); each `start`
+`secrets.env` holds only `op://` references (safe to commit); `opencode`'s `start`
 recipe resolves them at launch via `op run --env-file=secrets.env -- <cmd>`,
 which injects the real values into that one child process's environment and
-never writes them to disk.
+never writes them to disk. `claude`, `codex`, and `antigravity` don't use this
+file at all — see § Toolchain notes for why.
 
 `op run` itself still needs to authenticate to 1Password to resolve those
 references. Once per terminal session, run:
@@ -149,12 +150,17 @@ name, different repo, different job. Neither one touches
   scopes per-directory, so this is expected, not a bug.
 - Claude Code self-updates its binary; `DISABLE_AUTOUPDATER=1` in
   `mise.toml`'s `[env]` keeps the pin meaningful past the first install.
-- Codex is the one module with no `op run` wrapper, because it authenticates
-  with a ChatGPT sign-in (`codex login`) rather than a key. That is deliberate:
-  Codex reads `CODEX_API_KEY` from the environment and it *outranks* a stored
-  ChatGPT session, so injecting one would silently move billing from the plan to
-  per-token API usage. (`OPENAI_API_KEY` is not read for auth at all — only
-  `CODEX_API_KEY` is, which is a common source of confusion.)
+- `claude`, `codex`, and `antigravity` are the modules with no `op run`
+  wrapper — `opencode` is the only one that still needs `secrets.env`.
+  `claude` and `codex` authenticate with their own subscription login
+  (`claude login`, a ChatGPT sign-in via `codex login`) rather than a key.
+  That's deliberate: both read an API-key env var (`ANTHROPIC_API_KEY`,
+  `CODEX_API_KEY`) that *outranks* a stored login session, so injecting one
+  would silently move billing from the plan to per-token API usage.
+  (`OPENAI_API_KEY` is not read for Codex auth at all — only `CODEX_API_KEY`
+  is, which is a common source of confusion.) `antigravity` authenticates with
+  its own Google sign-in and doesn't read either secret in `secrets.env` at
+  all, so wrapping it would only add a pointless dependency on 1Password.
 - Codex asks once whether to trust this directory. Its repo-local config layer
   is inert until you say yes, so `.codex/config.toml` does nothing on the first
   run until you accept the prompt.

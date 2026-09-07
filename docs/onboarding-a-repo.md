@@ -14,7 +14,7 @@ a `.claude/` sandbox policy, and its own `secrets.env` (own vault refs, resolved
 | | infra already has | ai-workspace adds |
 |---|---|---|
 | Claude Code | ✓ own toolchain, own sandbox policy | — |
-| `secrets.env` (op:// refs, no real secrets) | ✓ own vault, own `agent-session.sh` wrapper — currently empty of refs | the agent-CLI refs (`ANTHROPIC_API_KEY` etc.) those new providers need, appended by hand — see Step 2 |
+| `secrets.env` (op:// refs, no real secrets) | ✓ own vault, own `agent-session.sh` wrapper — currently empty of refs | the `OPENROUTER_API_KEY` ref opencode needs, appended by hand — see Step 2. Codex and Antigravity need nothing here — they authenticate with their own login |
 | Codex, opencode, Antigravity | ✗ | ✓ |
 | Parallel agent sessions | ✗ | ✓ (claude-squad) |
 | `AGENTS.md` (generic, non-Claude-specific instructions) | ✗ | ✓ (`just onboard agents-md`) |
@@ -22,9 +22,9 @@ a `.claude/` sandbox policy, and its own `secrets.env` (own vault refs, resolved
 | `basic-memory` in `.mcp.json` | ✗ | ✓ (`just onboard mcp`) |
 
 So this walkthrough's job is narrow: give `infra` the providers it doesn't have, the
-generic-instructions file other providers read natively, the op:// refs those providers
-need in infra's own `secrets.env`, and the ability to run several providers at once, each
-in its own worktree.
+generic-instructions file other providers read natively, the one op:// ref opencode needs
+in infra's own `secrets.env`, and the ability to run several providers at once, each in
+its own worktree.
 
 ## Prerequisite
 
@@ -61,59 +61,59 @@ version) is reported, never silently resolved.
 
 ## Step 2 — one extra agent on infra
 
-Codex/opencode/Antigravity need the same `ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY` op://
-refs ai-workspace's own `secrets.env` defines. Which path to take depends on whether the
-target repo already has a `secrets.env` of its own — two different situations, both
-covered below.
+Codex and Antigravity need nothing here — like `claude` (which infra already runs, via
+its own `agent-session.sh`), both authenticate with their own subscription/account login,
+not an `op://` secret, so they just run directly:
 
-**If the target has no `secrets.env` at all**, there's nothing local to add the refs to,
-so point `op run` at ai-workspace's absolute path instead:
+```sh
+cd ~/dev/armarquez/infra
+codex
+agy
+```
+
+**opencode is the exception** — it authenticates via OpenRouter, a real API key with no
+subscription alternative, so it needs the `OPENROUTER_API_KEY` op:// ref ai-workspace's
+own `secrets.env` defines. Which path to take depends on whether the target repo already
+has a `secrets.env` of its own — two different situations, both covered below.
+
+**If the target has no `secrets.env` at all**, there's nothing local to add the ref to, so
+point `op run` at ai-workspace's absolute path instead:
 
 ```sh
 cd ~/dev/armarquez/some-other-repo
-op run --env-file=~/dev/armarquez/ai-workspace/secrets.env -- codex
+op run --env-file=~/dev/armarquez/ai-workspace/secrets.env -- opencode
 ```
 
 **`infra` already has its own `secrets.env`** (added by a separate scaffold, for infra's
-own secrets — see the table above), just not these refs yet. Append them there instead of
+own secrets — see the table above), just not this ref yet. Append it there instead of
 reaching for an absolute path:
 
 ```sh
 # infra/secrets.env
-ANTHROPIC_API_KEY=op://Personal/Anthropic API/credential
+OPENROUTER_API_KEY=op://Personal/OpenRouter API/credential
 ```
 
-Then run with a plain relative path, same as ai-workspace's own `start` recipes do:
+Then run with a plain relative path, same as ai-workspace's own `opencode/justfile` does:
 
 ```sh
 cd ~/dev/armarquez/infra
-op run --env-file=secrets.env -- codex
+op run --env-file=secrets.env -- opencode
 ```
 
-Same idea for opencode/Antigravity — swap `codex` for `opencode`/`agy`.
-
 **Caveat:** infra's own `scripts/agent-session.sh` wrapper only launches `claude`, with a
-`--settings .claude/sandbox-policy.json` flag that's Claude-specific. The commands above
-bypass that wrapper — and its sandbox policy — entirely for codex/opencode/antigravity.
-Extending the wrapper to cover them is a separate, infra-specific change; this walkthrough
-doesn't do it for you.
+`--settings .claude/sandbox-policy.json` flag that's Claude-specific. Codex, opencode, and
+Antigravity above all bypass that wrapper — and its sandbox policy — entirely. Extending
+the wrapper to cover them is a separate, infra-specific change; this walkthrough doesn't do
+it for you.
 
 ## Step 3 — parallel agents on infra via claude-squad
 
-`just squad start` won't work here — it's scoped to ai-workspace's own root (see the
-gotcha in [recipes.md](./recipes.md)). Run the binary directly from `infra`'s directory
-instead:
-
-```sh
-cd ~/dev/armarquez/infra
-claude-squad
-```
-
-**Generate and merge infra's profiles first.** `onboard squad` builds a
-target-specific set of profiles — named `infra: claude`, `infra: codex`, etc. so they
-can't collide with another onboarded repo's or with ai-workspace's own unqualified
-`claude`/`codex`/etc. — and, if `infra` has its own `secrets.env` (it does, per the table
-above), appends the `OPENROUTER_API_KEY` ref opencode needs. If `infra` had no
+`onboard squad` generates infra-specific claude-squad profiles — named `infra: claude`,
+`infra: codex`, etc. so they can't collide with another onboarded repo's or with
+ai-workspace's own unqualified `claude`/`codex`/etc. `claude`, `codex`, and `antigravity`
+need no secrets, so those profiles run the same everywhere, unchanged. `opencode` is the
+exception: since `infra` already has its own `secrets.env` (per the table above), `onboard
+squad` appends the `OPENROUTER_API_KEY` ref its profile needs. If `infra` had no
 `secrets.env` of its own, the generated opencode profile would use an absolute path to
 ai-workspace's instead — same two cases as Step 2, handled automatically:
 
@@ -126,9 +126,18 @@ just squad link-target ~/dev/armarquez/infra        # merges those profiles into
 ```
 
 `infra/.ai-workspace/` is machine-specific (an absolute-path case would point at *this*
-machine's ai-workspace checkout) — the `--apply` step reminds you to add it to `infra`'s
-`.gitignore`. `just squad unlink-target ~/dev/armarquez/infra` reverses the merge, removing
-only the `infra: ...` profiles.
+machine's ai-workspace checkout) — add it to `infra`'s `.gitignore` (the `--apply` step
+prints a reminder). `just squad unlink-target ~/dev/armarquez/infra` reverses the merge,
+removing only the `infra: ...` profiles.
+
+**Now launch it.** `just squad start` won't work here — it's scoped to ai-workspace's own
+root (see the gotcha in [recipes.md](./recipes.md)). Run the binary directly from `infra`'s
+directory instead, where the `infra: ...` profiles generated above are now selectable:
+
+```sh
+cd ~/dev/armarquez/infra
+claude-squad
+```
 
 ## Step 4 — a worked example: two agents, two worktrees
 
@@ -162,10 +171,10 @@ flowchart LR
   risk applies to any CLI you invoke directly rather than through a `just <provider>
   start` recipe. If a command isn't behaving like the pinned version, run `which <cli>`
   first.
-- **`op run`'s session cache is per-shell.** Running several profile sessions in parallel
-  can mean several independent 1Password prompts unless a session token is already
-  exported in the shell claude-squad itself launches from (see
-  [conventions.md](./conventions.md#the-secrets-model)).
+- **`op run`'s session cache is per-shell.** Only the `opencode` profile touches it, but
+  running several `opencode` sessions in parallel can still mean several independent
+  1Password prompts, unless a session token is already exported in the shell claude-squad
+  itself launches from (see [conventions.md](./conventions.md#the-secrets-model)).
 - **Two different sandbox postures are now in play.** `infra`'s own `.claude/` policy
   covers Claude Code sessions on it. Codex sessions on the same repo fall back to
   ai-workspace's native-only Codex sandbox (`codex/config-base.toml`) — no
