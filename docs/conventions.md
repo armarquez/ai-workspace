@@ -25,7 +25,7 @@ special case.
 ## The secrets model
 
 `secrets.env` (repo root) holds only `op://` references — safe to commit, never a real
-key. Each provider's `start` resolves them at launch via:
+key. `opencode`'s `start` resolves them at launch via:
 
 ```sh
 op run --env-file=secrets.env -- <cli>
@@ -42,11 +42,15 @@ environment for about 30 minutes, not on disk — every `start` in that terminal
 silently; a new terminal, or one that's timed out, needs it again. `just doctor` checks
 this and tells you if it's stale.
 
-**Codex is the deliberate exception.** It authenticates with a ChatGPT sign-in
-(`codex login`), and `CODEX_API_KEY` in the environment *outranks* a stored ChatGPT
-session — injecting one via `op run` would silently move billing from the plan to
-per-token API usage. So `codex/justfile`'s `start` has no `op run` wrapper at all. See its
-header comment for the full reasoning.
+**`claude`, `codex`, and `antigravity` are the deliberate exceptions.** `claude` and
+`codex` authenticate with their own subscription login (`claude login`, a ChatGPT sign-in
+via `codex login`), and the matching API-key env var (`ANTHROPIC_API_KEY`,
+`CODEX_API_KEY`) *outranks* a stored login session — injecting one via `op run` would
+silently move billing from the plan to per-token API usage. `antigravity` (`agy`)
+authenticates with its own Google sign-in and reads neither secret at all, so wrapping it
+would only add a pointless dependency on 1Password resolving successfully. None of their
+`start` recipes have an `op run` wrapper. See each justfile's header comment for the full
+reasoning.
 
 ## The `$HOME` write policy
 

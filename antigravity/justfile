@@ -1,17 +1,17 @@
 # Antigravity CLI (`agy`) — Google's replacement for the retired Gemini CLI
 # (https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/).
-# Separate quota from the Claude Code tier.
+# Separate quota from the Claude Code tier. Authenticates with its own Google
+# account sign-in (~/.gemini/gemini-credentials.json), not anything in
+# secrets.env — agy reads neither ANTHROPIC_API_KEY nor OPENROUTER_API_KEY, so
+# `start` has no `op run` wrapper (same reasoning as codex/justfile and
+# claude/justfile: nothing to inject, and no risk of shadowing a login).
 
-# Launch Antigravity CLI from the repo root, with secrets injected
+# Launch Antigravity CLI from the repo root
 start:
     #!/usr/bin/env bash
     set -euo pipefail
     cd '{{ justfile_directory() }}'
-    # WSL shares the Windows PATH, so a Windows-installed 1Password CLI
-    # resolves as `op.exe`, not `op` — see scripts/doctor.sh's op_cmd().
-    op=op.exe
-    command -v op.exe >/dev/null 2>&1 || op=op
-    "$op" run --env-file=secrets.env -- agy
+    agy
 
 # Verify install without changing anything
 check:

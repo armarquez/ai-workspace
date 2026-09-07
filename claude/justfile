@@ -1,4 +1,10 @@
-# Claude Code — subscription tier, primary driver.
+# Claude Code — subscription tier, primary driver. Authenticates with a
+# `claude login` session, not an API key, so `start` needs no secrets
+# injected and (like codex/justfile) has no `op run` wrapper.
+#
+# Deliberate: Claude Code reads ANTHROPIC_API_KEY from the environment and it
+# *outranks* a stored subscription session, so injecting one here would
+# silently move billing from the plan to per-token API usage.
 #
 # This module is unrelated to ~/dotfiles/claude/justfile, which manages your
 # global ~/.claude via Stow. This one never touches ~/.claude/settings.json,
@@ -6,16 +12,12 @@
 # supported `claude mcp add-json ... -s user` API, which merges rather than
 # replacing that live file.
 
-# Launch Claude Code from the repo root, with secrets injected
+# Launch Claude Code from the repo root
 start:
     #!/usr/bin/env bash
     set -euo pipefail
     cd '{{ justfile_directory() }}'
-    # WSL shares the Windows PATH, so a Windows-installed 1Password CLI
-    # resolves as `op.exe`, not `op` — see scripts/doctor.sh's op_cmd().
-    op=op.exe
-    command -v op.exe >/dev/null 2>&1 || op=op
-    "$op" run --env-file=secrets.env -- claude
+    claude
 
 # Verify install without changing anything
 check:
