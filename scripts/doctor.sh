@@ -71,6 +71,14 @@ if command -v lsof >/dev/null 2>&1; then
 else
     echo "  ~ lsof not found — \`just ollama stop\`/\`just down\` won't work (WSL: sudo apt-get install lsof)"
 fi
+# A fresh machine with direnv + mise installed but never wired together errors with
+# "use_mise: command not found" the first time any repo's .envrc runs `use mise`.
+if [ -f "$HOME/.config/direnv/lib/use_mise.sh" ] || grep -q "use_mise" "$HOME/.config/direnv/direnvrc" 2>/dev/null; then
+    echo "  ✓ direnv's use_mise function is set up"
+else
+    echo "  ~ direnv's use_mise function missing — \`use mise\` in .envrc will error with"
+    echo "    \"use_mise: command not found\" — run: just direnv-setup"
+fi
 
 is_wsl() {
     [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null
