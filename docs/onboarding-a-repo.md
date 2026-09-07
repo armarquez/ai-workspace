@@ -100,22 +100,13 @@ doesn't do it for you.
 
 ## Step 3 — parallel agents on infra via claude-squad
 
-`just squad start` won't work here — it's scoped to ai-workspace's own root (see the
-gotcha in [recipes.md](./recipes.md)). Run the binary directly from `infra`'s directory
-instead:
-
-```sh
-cd ~/dev/armarquez/infra
-claude-squad
-```
-
-**Generate and merge infra's profiles first.** `onboard squad` builds a
-target-specific set of profiles — named `infra: claude`, `infra: codex`, etc. so they
-can't collide with another onboarded repo's or with ai-workspace's own unqualified
-`claude`/`codex`/etc. — and, if `infra` has its own `secrets.env` (it does, per the table
-above), appends the `OPENROUTER_API_KEY` ref opencode needs. If `infra` had no
-`secrets.env` of its own, the generated opencode profile would use an absolute path to
-ai-workspace's instead — same two cases as Step 2, handled automatically:
+`onboard squad` generates infra-specific claude-squad profiles — named `infra: claude`,
+`infra: codex`, etc. so they can't collide with another onboarded repo's or with
+ai-workspace's own unqualified `claude`/`codex`/etc. — and, since `infra` already has its
+own `secrets.env` (per the table above), appends the `OPENROUTER_API_KEY` ref opencode
+needs. If `infra` had no `secrets.env` of its own, the generated opencode profile would use
+an absolute path to ai-workspace's instead — same two cases as Step 2, handled
+automatically:
 
 ```sh
 just onboard squad ~/dev/armarquez/infra            # dry-run plan
@@ -126,9 +117,18 @@ just squad link-target ~/dev/armarquez/infra        # merges those profiles into
 ```
 
 `infra/.ai-workspace/` is machine-specific (an absolute-path case would point at *this*
-machine's ai-workspace checkout) — the `--apply` step reminds you to add it to `infra`'s
-`.gitignore`. `just squad unlink-target ~/dev/armarquez/infra` reverses the merge, removing
-only the `infra: ...` profiles.
+machine's ai-workspace checkout) — add it to `infra`'s `.gitignore` (the `--apply` step
+prints a reminder). `just squad unlink-target ~/dev/armarquez/infra` reverses the merge,
+removing only the `infra: ...` profiles.
+
+**Now launch it.** `just squad start` won't work here — it's scoped to ai-workspace's own
+root (see the gotcha in [recipes.md](./recipes.md)). Run the binary directly from `infra`'s
+directory instead, where the `infra: ...` profiles generated above are now selectable:
+
+```sh
+cd ~/dev/armarquez/infra
+claude-squad
+```
 
 ## Step 4 — a worked example: two agents, two worktrees
 
