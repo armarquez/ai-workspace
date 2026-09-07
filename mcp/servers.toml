@@ -16,5 +16,10 @@
 [basic-memory]
 type = "stdio"
 command = "uvx"
-args = ["basic-memory", "mcp"]
+# Pinned — an unpinned `uvx basic-memory` resolves to whatever's latest at launch
+# time, independent of mise.toml's pin. Divergence between the two breaks
+# ~/.basic-memory/memory.db's Alembic migrations: whichever version touches the
+# shared db last migrates it forward, and an older CLI can't open a db stamped
+# by a newer one. Keep this version in sync with mise.toml's pipx:basic-memory pin.
+args = ["basic-memory@0.23.2", "mcp"]
 description = "Shared markdown memory across all providers"
