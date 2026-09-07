@@ -1,3 +1,9 @@
+---
+title: README
+type: note
+permalink: ai-workspace/readme
+---
+
 # memory
 
 Shared notes written by `basic-memory` (see `mcp/servers.toml`), read by
