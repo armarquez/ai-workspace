@@ -109,31 +109,26 @@ cd ~/dev/armarquez/infra
 claude-squad
 ```
 
-**One adjustment first.** `squad/config.json`'s checked-in profiles point at a *relative*
-`secrets.env`, which resolves correctly inside an ai-workspace worktree (every worktree
-gets its own copy, since it's a tracked file) — and, once Step 2's refs are appended to
-`infra/secrets.env`, resolves just as correctly inside an `infra` worktree too, since that
-file is tracked there as well. Open `~/.claude-squad/config.json` and copy `infra`'s
-profiles over verbatim, same relative path and all:
+**Generate and merge infra's profiles first.** `onboard squad` builds a
+target-specific set of profiles — named `infra: claude`, `infra: codex`, etc. so they
+can't collide with another onboarded repo's or with ai-workspace's own unqualified
+`claude`/`codex`/etc. — and, if `infra` has its own `secrets.env` (it does, per the table
+above), appends the `OPENROUTER_API_KEY` ref opencode needs. If `infra` had no
+`secrets.env` of its own, the generated opencode profile would use an absolute path to
+ai-workspace's instead — same two cases as Step 2, handled automatically:
 
-```json
-{
-  "profiles": [
-    { "name": "claude", "program": "op run --env-file=secrets.env -- claude" },
-    { "name": "codex",  "program": "codex" }
-  ]
-}
+```sh
+just onboard squad ~/dev/armarquez/infra            # dry-run plan
+just onboard squad ~/dev/armarquez/infra --apply    # writes infra/secrets.env (if needed)
+                                                     # and infra/.ai-workspace/squad-profiles.json
+just squad link-target ~/dev/armarquez/infra        # merges those profiles into
+                                                     # ~/.claude-squad/config.json
 ```
 
-Only reach for an absolute path if the target genuinely has no `secrets.env` of its own
-(see Step 2's other case):
-
-```json
-{ "name": "claude", "program": "op run --env-file=/Users/you/dev/armarquez/ai-workspace/secrets.env -- claude" }
-```
-
-This is a per-target-repo edit, made once, by hand — not something `just squad link`
-should guess at, since it has no way to know which repo you'll point claude-squad at next.
+`infra/.ai-workspace/` is machine-specific (an absolute-path case would point at *this*
+machine's ai-workspace checkout) — the `--apply` step reminds you to add it to `infra`'s
+`.gitignore`. `just squad unlink-target ~/dev/armarquez/infra` reverses the merge, removing
+only the `infra: ...` profiles.
 
 ## Step 4 — a worked example: two agents, two worktrees
 

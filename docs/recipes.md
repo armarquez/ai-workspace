@@ -80,6 +80,8 @@ Not a model provider; it orchestrates the five above. See
 | `check` | Is `claude-squad`/`tmux`/`gh` installed? Does `gh` actually resolve to the mise-managed one, or does something earlier in `PATH` win? Does `~/.claude-squad/config.json` have this repo's profiles? |
 | `link` | `sync-squad.py link` — merges `squad/config.json`'s profiles into `~/.claude-squad/config.json` by name, backed up first. |
 | `unlink` | Removes only those profile names, leaving anything hand-added untouched. |
+| `link-target target` | `sync-squad.py link --profiles-file <target>/.ai-workspace/squad-profiles.json` — merges a target repo's generated profiles (see `onboard squad` below) into `~/.claude-squad/config.json`, same merge-by-name/backup-first logic as `link`. |
+| `unlink-target target` | Removes only that target's profile names. |
 
 ## `onboard/` — onboarding a target repo
 
@@ -92,8 +94,9 @@ recipe below takes a `target` path to some *other* repo. See
 | `agents-md target *args` | Converts `target`'s `CLAUDE.md` into `AGENTS.md`, reducing `CLAUDE.md` to `@AGENTS.md`. Aborts if `AGENTS.md` already exists; no-ops if already converted. |
 | `mise-tools target *args` | Adds the agent-CLI tool pins `target`'s `mise.toml` is missing (`claude`, `agy`, `opencode`, `codex`, `claude-squad`, `tmux`, `gh`). Never touches a tool `target` already pins at a different version — reports it as a conflict instead. |
 | `mcp target *args` | Merges `mcp/servers.toml`'s servers into `target`'s `.mcp.json`. |
-| `all target *args` | Runs the three above, in order. |
-| `check target` | Read-only status against `target` for all three. Never mutates anything. |
+| `squad target *args` | Generates `target/.ai-workspace/squad-profiles.json` — `target`'s own claude-squad profiles, named `<target dirname>: <provider>` to avoid colliding with another onboarded repo's or ai-workspace's own unqualified names. Appends `OPENROUTER_API_KEY` to `target`'s `secrets.env` if it has one; otherwise the generated opencode profile uses an absolute path to ai-workspace's own. Not part of `all` — opt-in, same as claude-squad itself. Merge the result in with `just squad link-target target`. |
+| `all target *args` | Runs `agents-md`, `mise-tools`, and `mcp` (not `squad` — opt-in separately). |
+| `check target` | Read-only status against `target` for `agents-md`/`mise-tools`/`mcp`. Never mutates anything. |
 
 Every recipe except `check` is a dry-run — prints its plan, writes nothing — unless
 `*args` includes `--apply`. None of them ever run git in `target`; you review and commit
