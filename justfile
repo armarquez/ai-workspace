@@ -26,6 +26,24 @@ bootstrap:
 install-hooks:
     prek install --overwrite
 
+# One-time host setup ($HOME write, opt-in — not part of `bootstrap`): generates the
+# use_mise() direnv function so `use mise` in any repo's .envrc works. Without it,
+# `direnv allow` errors with "use_mise: command not found" — mise's own direnv
+# integration is unsupported upstream (https://mise.en.dev/direnv.html), but this is
+# the fix when it breaks. Safe to re-run; backs up the file it overwrites.
+direnv-setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    target="$HOME/.config/direnv/lib/use_mise.sh"
+    mkdir -p "$(dirname "$target")"
+    if [ -f "$target" ]; then
+        backup="$target.$(date -u +%Y%m%dT%H%M%SZ).bak"
+        cp "$target" "$backup"
+        echo "backed up $target -> $backup"
+    fi
+    mise direnv activate >"$target"
+    echo "wrote $target"
+
 # Run pre-commit checks against every file (useful after updating hooks)
 lint-all:
     prek run --all-files

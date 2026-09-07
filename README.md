@@ -128,6 +128,15 @@ servers globally, always additively:
 - Antigravity / opencode: a `jq`-style merge into their global config, with
   a timestamped backup first.
 
+Separately, `just direnv-setup` writes `~/.config/direnv/lib/use_mise.sh` — not specific
+to this repo, but the fix for `direnv: ... environment:N: use_mise: command not found`,
+which any repo whose `.envrc` says `use mise` will hit on a machine that has `direnv` and
+`mise` installed but has never wired the two together. `just doctor` checks for this file
+and tells you to run the recipe if it's missing; safe to re-run, backs up what it
+overwrites. mise's own direnv integration is
+[unsupported upstream](https://mise.en.dev/direnv.html) — this only fixes the specific
+"function not found" error, not a guarantee direnv+mise stays glitch-free going forward.
+
 **If you also use `~/dotfiles`** (Stow-managed `~/.claude`): this repo's
 `claude/justfile` module is unrelated to `~/dotfiles/claude/justfile` — same
 name, different repo, different job. Neither one touches
