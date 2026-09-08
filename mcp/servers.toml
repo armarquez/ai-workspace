@@ -8,6 +8,9 @@
 #                              sync-mcp.py leaves literal so the target CLI
 #                              expands it at its own runtime.
 #   url + headers            -- for http
+#   startup_timeout_sec      -- Codex-only (its MCP client's handshake deadline,
+#                                default 10s upstream); every other renderer here
+#                                ignores this field.
 #
 # basic-memory has no env var for its project path — it resolves projects by
 # name via its own project registry (`basic-memory project add ...`, run by
@@ -23,3 +26,10 @@ command = "uvx"
 # by a newer one. Keep this version in sync with mise.toml's pipx:basic-memory pin.
 args = ["basic-memory@0.23.2", "mcp"]
 description = "Shared markdown memory across all providers"
+# A cold first start (fresh worktree, first-ever invocation) runs basic-memory's
+# SQLite migrations + semantic-embedding init in the same process that's also
+# answering Codex's MCP handshake — under WSL2 that can occasionally exceed
+# Codex's 10s default, surfacing as "connection closed: initialize response".
+# 30s gives a cold start real headroom; a warm start still finishes in well
+# under a second either way.
+startup_timeout_sec = 30
