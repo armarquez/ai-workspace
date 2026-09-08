@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.13"
+# dependencies = ["tomlkit==0.15.1"]
 # ///
 """Render mcp/servers.toml into each CLI's native MCP config format.
 
@@ -12,6 +13,13 @@ Usage:
 No standard MCP config format exists yet (SEP-2633 is unmerged), so this
 script owns the translation instead of depending on a third-party syncer that
 writes ~/.claude.json directly.
+
+codex's `link` merges directly into ~/.codex/config.toml via tomlkit (parse,
+update the `mcp_servers` table, dump) rather than shelling out to `codex mcp
+add` — that CLI has no way to set fields like `startup_timeout_sec`, and this
+preserves everything else already in the file (trusted-project entries,
+hooks.state) untouched. tomlkit specifically because it round-trips comments
+and formatting; a plain dict->TOML dump would reformat/lose them.
 """
 
 import datetime
@@ -21,6 +29,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import tomlkit
+import tomlkit.items
 import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -108,6 +118,8 @@ def render_codex(servers: dict) -> str:
             args = s.get("args", [])
             rendered = ", ".join(_toml_str(a) for a in args)
             lines.append(f"args = [{rendered}]")
+        if "startup_timeout_sec" in s:
+            lines.append(f"startup_timeout_sec = {s['startup_timeout_sec']}")
         env = s.get("env")
         if env:
             lines.append("")
@@ -123,17 +135,46 @@ def write_text(path: Path, text: str) -> None:
     print(f"wrote {path.relative_to(REPO_ROOT)}")
 
 
-def codex_add_args(name: str, server: dict) -> list[str]:
-    """`codex mcp add <name> [--env K=V ...] -- <command> [args...]`.
+def _codex_server_table(s: dict) -> tomlkit.items.Table:
+    """Same fields as render_codex's per-server block, built as a tomlkit
+    Table instead of raw text — used by _link_codex to merge into an
+    existing ~/.codex/config.toml rather than rewrite a whole file."""
+    table = tomlkit.table()
+    if "url" in s:
+        table["url"] = s["url"]
+    else:
+        table["command"] = s["command"]
+        table["args"] = s.get("args", [])
+    if "startup_timeout_sec" in s:
+        table["startup_timeout_sec"] = s["startup_timeout_sec"]
+    env = s.get("env")
+    if env:
+        env_table = tomlkit.table()
+        for k, v in env.items():
+            env_table[k] = v
+        table["env"] = env_table
+    return table
 
-    Used by link/unlink because `codex mcp add` writes only to CODEX_HOME — it
-    has no --scope/--project flag — so the global path has to go through the CLI
-    while the repo-local path goes through render_codex().
-    """
-    argv = ["codex", "mcp", "add", name]
-    for k, v in (server.get("env") or {}).items():
-        argv += ["--env", f"{k}={v}"]
-    return argv + ["--", server["command"], *server.get("args", [])]
+
+def _link_codex(servers: dict) -> None:
+    """Merge servers into ~/.codex/config.toml's mcp_servers table, replacing
+    only the names this repo owns — everything else in the file (trusted
+    projects, hooks.state) survives untouched. tomlkit round-trips comments
+    and formatting, unlike a plain dict->TOML dump."""
+    path = Path.home() / ".codex" / "config.toml"
+    if path.exists():
+        backup(path)
+        doc = tomlkit.parse(path.read_text())
+    else:
+        doc = tomlkit.document()
+
+    mcp_servers = doc.setdefault("mcp_servers", tomlkit.table())
+    for name, s in servers.items():
+        mcp_servers[name] = _codex_server_table(s)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(tomlkit.dumps(doc))
+    print(f"wrote {path}")
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -200,11 +241,7 @@ def cmd_link(provider: str) -> None:
         path = Path.home() / ".config" / "opencode" / "opencode.json"
         merge_json_file(path, "mcp", render_opencode(servers))
     elif provider == "codex":
-        for name, s in servers.items():
-            subprocess.run(
-                codex_add_args(name, s),
-                check=False,  # non-zero if already registered; not fatal
-            )
+        _link_codex(servers)
     else:
         sys.exit(f"unknown provider: {provider}")
 
