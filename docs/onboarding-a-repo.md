@@ -139,31 +139,62 @@ cd ~/dev/armarquez/infra
 claude-squad
 ```
 
-## Step 4 — a worked example: two agents, two worktrees
+## Step 4 — a worked example: 3 codex sessions + 2 claude sessions
 
 ```mermaid
 flowchart LR
-    H[You] -->|"n, pick a profile"| CS[claude-squad]
-    CS --> W1["Worktree A<br />(claude session)"]
-    CS --> W2["Worktree B<br />(codex session)"]
-    W1 -->|"s: commit + push"| B1[branch A]
-    W2 -->|"s: commit + push"| B2[branch B]
-    B1 --> PR[Pull request]
-    B2 --> PR
+    H[You] -->|"N, pick profile + prompt"| CS[claude-squad]
+    CS --> W1["Worktree 1<br />(infra: codex)"]
+    CS --> W2["Worktree 2<br />(infra: codex)"]
+    CS --> W3["Worktree 3<br />(infra: codex)"]
+    CS --> W4["Worktree 4<br />(infra: claude)"]
+    CS --> W5["Worktree 5<br />(infra: claude)"]
+    W1 -->|"s: commit + push"| PR[Pull request]
+    W2 --> PR
+    W3 --> PR
+    W4 --> PR
+    W5 --> PR
 ```
 
-1. `n` — new session, pick the `claude` profile, give it a task.
-2. `n` again — new session, pick `codex`, give it a different task. claude-squad now has
-   two sessions, each in its own worktree, each on its own branch.
-3. `tab` toggles between the session's live output and a diff of its worktree — review
-   either without leaving the TUI.
-4. `↵`/`o` attaches to a session to reprompt it directly; `ctrl-q` detaches back to the
-   list.
-5. `s` commits and pushes a session's branch, once you're happy with it. Open the PR the
-   normal way from there.
+**`n` vs `N` — only one of them lets you pick a profile.** Plain `n` creates a session
+immediately using one fixed program for claude-squad's entire run — whatever
+`default_program` resolves to against your profiles (see the caveat below), or the
+`--program` flag if you launched with one. It never shows a profile picker and never
+changes mid-run, so every plain-`n` session uses the same tool. To choose the tool
+per session, use `N` (shift+N) instead:
+
+1. `N` — type a short title (becomes the branch name, 32 characters max), press `↵`.
+2. This opens a prompt overlay: a profile picker at the top (`←`/`→` to change — shown
+   whenever more than one profile exists), a branch search box, and a text box for the
+   session's initial prompt.
+3. Arrow to the profile you want, type the task for this session, press `↵`. The session
+   starts immediately in its own worktree and branch, with that prompt already sent.
+
+**To get 3 `infra: codex` sessions and 2 `infra: claude` sessions**, repeat that `N` loop
+five times — a distinct title and task each time, arrowing to `infra: codex` for the first
+three and `infra: claude` for the last two. Each press is independent; there's no
+batch/bulk command, and no cap on mixing tools — only on total session count
+(`GlobalInstanceLimit`, 10 per claude-squad run today).
+
+- `tab` toggles between a session's live output and a diff of its worktree — review either
+  without leaving the TUI.
+- `↑/j`, `↓/k` move between sessions in the list.
+- `↵`/`o` attaches to a session to reprompt it directly; `ctrl-q` detaches back to the list.
+- `s` commits and pushes a session's branch, once you're happy with it. Open the PR the
+  normal way from there.
 
 ## Caveats
 
+- **`default_program` must exactly match a profile's `name`, or it silently does nothing.**
+  Verified against `config/config.go` in the pinned fork (`GetProfiles()`/`GetProgram()`):
+  both only special-case `default_program` by comparing it to each profile's `name` field.
+  Set it to a literal path or command (`/usr/local/bin/claude`, the pre-profiles default)
+  once profiles exist, and neither function ever matches — the profile picker's
+  pre-selected entry falls back to whatever is first in the `profiles` array (not
+  necessarily what you'd call "default"), and a plain `n` session (see Step 4) resolves to
+  `default_program`'s literal value run as a command, not a profile lookup. Set it to one
+  of your profile names instead (e.g. `"infra: claude"`) to get the reorder-to-first
+  behavior the config format implies.
 - **`PATH` may not resolve what you expect.** A clean shell test (a login shell with no
   inherited state) found `claude`/`codex` resolving to unrelated `/usr/local/bin` installs
   and `gh` resolving to a machine-specific fork — none of them the mise-pinned versions.
