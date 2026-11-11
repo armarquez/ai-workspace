@@ -33,3 +33,15 @@ description = "Shared markdown memory across all providers"
 # 30s gives a cold start real headroom; a warm start still finishes in well
 # under a second either way.
 startup_timeout_sec = 30
+
+# Code graph (calls, routes, architecture, change impact) over a repo indexed with
+# `just cbm index <repo>`. The server's session project is the agent's cwd.
+# `--ui=false` keeps its loopback visualization server (default 127.0.0.1:9749) off; the
+# flag is persisted in CBM's own config under ~/.cache/codebase-memory-mcp, not in our files.
+# Never run its own `install` subcommand: it writes hooks/skills/agents into ~/.claude,
+# ~/.codex, etc., outside this repo's backup/link/unlink model.
+[codebase-memory]
+type = "stdio"
+command = "codebase-memory-mcp"
+args = ["--ui=false"]
+description = "Code graph: search, call tracing, architecture, change impact"

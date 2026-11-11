@@ -114,6 +114,14 @@ a tool already pinned in the target at a version that disagrees with this repo's
 is reported as a conflict and left alone, never silently overridden. See
 [onboarding-a-repo.md](./onboarding-a-repo.md) for the full walkthrough.
 
+## The code graph's own `install` is never run
+
+`codebase-memory-mcp install` writes hooks, skills, and agents into `~/.claude`, `~/.codex`,
+opencode, and Antigravity, copies a binary to `~/.local/bin`, and edits shell rc files. That
+makes it a second writer to files this repo's `link`/`unlink` already own, with no backup and no
+reverse. So `cbm/` and `mcp/servers.toml` register the server the same way as every other one,
+and the pin comes from `mise.toml`.
+
 ## Sandbox posture
 
 Codex's sandbox here is native-only: an OS-level sandbox (`sandbox_mode`,

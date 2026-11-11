@@ -1,0 +1,81 @@
+# codebase-memory-mcp (CBM) — a code graph (calls, routes, architecture, change impact) that
+# agents query over MCP instead of grepping. Not a provider and not interactive, so there is no
+# `start`: the MCP server is registered like basic-memory, through mcp/servers.toml
+# (`just sync-mcp`, `just claude link`, `just onboard mcp <repo>`), and each agent launches it.
+#
+# These recipes are the CLI-only half: index a repo, then ask the graph questions without an
+# agent. They share the default cache (~/.cache/codebase-memory-mcp) with the MCP server —
+# do NOT set CBM_CACHE_DIR, CBM rejects a second cache root per account.
+#
+# Never run `codebase-memory-mcp install`: it writes hooks, skills, and agents into ~/.claude,
+# ~/.codex, opencode, and Antigravity, plus ~/.local/bin and your shell rc files — all outside
+# this repo's backup/link/unlink model. See docs/conventions.md.
+#
+# The graph is static: dynamic dispatch, dependency injection, and generated code leave gaps,
+# and "no callers" means "no static callers". Treat results as candidates, not proof.
+
+bin := "codebase-memory-mcp"
+
+# Verify the binary is installed and matches the mise pin. Never mutates anything
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    if ! command -v {{ bin }} >/dev/null 2>&1; then
+        echo "✗ {{ bin }} not found — run: mise install"
+        exit 1
+    fi
+    have="$({{ bin }} --version | awk '{print $2}')"
+    want="$(mise ls --current --json '{{ bin }}' 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(iter(d.values()))[0]['version'])" 2>/dev/null || true)"
+    echo "✓ {{ bin }} $have"
+    if [ -n "$want" ] && [ "$have" != "$want" ]; then
+        echo "  ~ mise pins $want but $have is running — check which {{ bin }} wins on PATH"
+    fi
+    if ./scripts/onboard-repo.py check "$PWD" 2>/dev/null | grep -q "is in the code-graph index"; then
+        echo "✓ this repo is indexed"
+    else
+        echo "~ this repo is not indexed — run: just cbm index ."
+    fi
+
+# Index a repo into the shared cache (explicit; the MCP server never auto-indexes by default)
+index repo:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd '{{ justfile_directory() }}'
+    {{ bin }} cli --progress index_repository --repo-path "$(realpath '{{ invocation_directory() }}/{{ repo }}')"
+
+# List indexed projects and the project name CBM derived from each path
+projects:
+    cd '{{ justfile_directory() }}' && {{ bin }} cli list_projects
+
+# Codebase overview: languages, packages, entry points, routes
+architecture project:
+    cd '{{ justfile_directory() }}' && {{ bin }} cli get_architecture --project "{{ project }}"
+
+# Structural search by name pattern + label (e.g. label=Function, label=Route)
+search project pattern label="Function":
+    cd '{{ justfile_directory() }}' && {{ bin }} cli --json search_graph --project "{{ project }}" --name-pattern "{{ pattern }}" --label "{{ label }}"
+
+# Call chain: who calls fn (inbound) or what fn calls (outbound)
+trace project fn direction="inbound" depth="5":
+    cd '{{ justfile_directory() }}' && {{ bin }} cli --json trace_path --project "{{ project }}" --function-name "{{ fn }}" --direction "{{ direction }}" --depth {{ depth }}
+
+# Functions with no static callers, excluding entry points — candidates, not proof of dead code
+dead-code project:
+    cd '{{ justfile_directory() }}' && {{ bin }} cli --json query_graph --project "{{ project }}" --query "MATCH (f:Function) WHERE NOT EXISTS { (f)<-[:CALLS]-() } AND f.is_entry_point = false RETURN f.name, f.file_path LIMIT 25"
+
+# Arbitrary read-only Cypher query
+cypher project query:
+    cd '{{ justfile_directory() }}' && {{ bin }} cli --json query_graph --project "{{ project }}" --query "{{ query }}"
+
+# Map the current uncommitted git diff to affected symbols and blast radius
+detect-changes project:
+    cd '{{ justfile_directory() }}' && {{ bin }} cli detect_changes --project "{{ project }}"
+
+# No-op — registration goes through mcp/servers.toml. Kept so every module has the same contract
+link:
+    @echo "codebase-memory registers via mcp/servers.toml — run: just sync-mcp / just claude link"
+
+# No-op — see link
+unlink:
+    @echo "nothing to unlink — remove [codebase-memory] from mcp/servers.toml and re-run link/unlink for each provider"

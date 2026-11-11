@@ -3,13 +3,15 @@
 # requires-python = ">=3.13"
 # ///
 """Bring an existing repo onto this toolkit: CLAUDE.md -> AGENTS.md, agent-CLI tool pins
-in its mise.toml, mcp/servers.toml's servers in its .mcp.json, and claude-squad profiles.
+in its mise.toml, mcp/servers.toml's servers in its .mcp.json, claude-squad profiles, and a
+code-graph index (codebase-memory-mcp) plus an AGENTS.md note telling agents to use it.
 
 Usage:
     onboard-repo.py agents-md   <target> [--apply]
     onboard-repo.py mise-tools  <target> [--apply]
     onboard-repo.py mcp         <target> [--apply]
     onboard-repo.py squad       <target> [--apply]
+    onboard-repo.py cbm-index   <target> [--apply]
     onboard-repo.py all         <target> [--apply]
     onboard-repo.py check       <target>
 
@@ -27,6 +29,7 @@ import datetime
 import json
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,12 +39,25 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MISE_FILE = REPO_ROOT / "mise.toml"
 SERVERS_FILE = REPO_ROOT / "mcp" / "servers.toml"
 SQUAD_TEMPLATE_FILE = REPO_ROOT / "squad" / "config.json"
+CBM_SNIPPET_FILE = REPO_ROOT / "onboard" / "cbm-agents-snippet.md"
+CBM_BEGIN = "<!-- BEGIN ai-workspace codebase-memory -->"
+CBM_END = "<!-- END ai-workspace codebase-memory -->"
+CBM_BIN = "codebase-memory-mcp"
 OPENROUTER_REF = "OPENROUTER_API_KEY=op://Personal/OpenRouter API/credential"
 
 # Agent-CLI tools this toolkit contributes to an onboarded repo's mise.toml. Deliberately
 # excludes `ollama` (a separate opt-in fallback tier) and this repo's own scripting deps
 # (uv/node/python/prek/gitleaks) — a target repo doesn't need those just to run the agents.
-AGENT_TOOLS = ["claude", "agy", "opencode", "codex", "claude-squad", "tmux", "gh"]
+AGENT_TOOLS = [
+    "claude",
+    "agy",
+    "opencode",
+    "codex",
+    "claude-squad",
+    "tmux",
+    "gh",
+    CBM_BIN,
+]
 
 
 def backup(path: Path) -> None:
@@ -77,6 +93,20 @@ def _parse_flags(args: list[str]) -> tuple[str, bool]:
 # --- agents-md ---------------------------------------------------------------
 
 
+def _cbm_block() -> str:
+    return f"{CBM_BEGIN}\n{CBM_SNIPPET_FILE.read_text().strip()}\n{CBM_END}"
+
+
+def _with_cbm_block(text: str) -> str:
+    """Append the code-graph note to AGENTS.md text, or refresh it in place between its
+    markers, so re-running never duplicates it and hand edits outside it survive."""
+    block = _cbm_block()
+    pattern = re.compile(re.escape(CBM_BEGIN) + r".*?" + re.escape(CBM_END), re.DOTALL)
+    if pattern.search(text):
+        return pattern.sub(lambda _: block, text, count=1)
+    return text.rstrip("\n") + "\n\n" + block + "\n"
+
+
 def cmd_agents_md(target: Path, apply: bool) -> None:
     claude_md = target / "CLAUDE.md"
     agents_md = target / "AGENTS.md"
@@ -85,28 +115,43 @@ def cmd_agents_md(target: Path, apply: bool) -> None:
         sys.exit(f"no CLAUDE.md at {target} — nothing to convert")
 
     content = claude_md.read_text()
-    if content.lstrip().startswith("@AGENTS.md"):
-        print(f"{claude_md} already starts with @AGENTS.md — nothing to do")
-        return
-
-    if agents_md.exists():
-        sys.exit(
-            f"{agents_md} already exists — merge by hand instead of overwriting it"
+    converted = content.lstrip().startswith("@AGENTS.md")
+    if converted:
+        if not agents_md.exists():
+            sys.exit(f"{claude_md} references @AGENTS.md but {agents_md} is missing")
+        agents_text = agents_md.read_text()
+    else:
+        if agents_md.exists():
+            sys.exit(
+                f"{agents_md} already exists — merge by hand instead of overwriting it"
+            )
+        agents_text = content
+        print(
+            f"would write {agents_md} ({len(content.splitlines())} lines, from CLAUDE.md)"
         )
+        print(f"would overwrite {claude_md} with '@AGENTS.md'")
 
-    print(
-        f"would write {agents_md} ({len(content.splitlines())} lines, from CLAUDE.md)"
-    )
-    print(f"would overwrite {claude_md} with '@AGENTS.md'")
+    new_agents = _with_cbm_block(agents_text)
+    block_changed = new_agents != agents_text
+    if converted and not block_changed:
+        print(
+            f"{agents_md} already converted and has the code-graph note — nothing to do"
+        )
+        return
+    if block_changed:
+        print(f"would add the codebase-memory note to {agents_md}")
     if not apply:
         print("(dry-run — pass --apply to write)")
         return
 
-    backup(claude_md)
-    agents_md.write_text(content)
-    claude_md.write_text("@AGENTS.md\n")
+    if not converted:
+        backup(claude_md)
+        claude_md.write_text("@AGENTS.md\n")
+        print(f"wrote {claude_md}")
+    else:
+        backup(agents_md)
+    agents_md.write_text(new_agents)
     print(f"wrote {agents_md}")
-    print(f"wrote {claude_md}")
 
 
 # --- mise-tools ----------------------------------------------------------------
@@ -126,7 +171,7 @@ def _own_tool_lines() -> dict[str, str]:
     rather than a second, unlinked copy of the version."""
     lines = {}
     for line in MISE_FILE.read_text().splitlines():
-        match = re.match(r'^([A-Za-z0-9_.-]+|"[^"]+")\s*=\s*"([^"]+)"', line)
+        match = re.match(r'^([A-Za-z0-9_.-]+|"[^"]+")\s*=\s*("|\{)', line)
         if not match:
             continue
         name = _tool_basename(match.group(1).strip('"'))
@@ -139,16 +184,19 @@ def _target_tools_table(target_mise: Path) -> dict[str, str]:
     if not target_mise.exists():
         return {}
     raw = tomllib.loads(target_mise.read_text()).get("tools", {})
-    return {_tool_basename(key): value for key, value in raw.items()}
+    return {
+        _tool_basename(key): value["version"] if isinstance(value, dict) else value
+        for key, value in raw.items()
+    }
 
 
 def _own_version(line: str) -> str:
     """Extract the pinned version from one of this repo's own mise.toml lines.
-    Matches the quoted value after `=`, not just the first quoted substring —
-    a backend-qualified key like `"github:armarquez/claude-squad"` is itself
-    quoted, so a naive "first quoted string in the line" match would grab the
-    key instead of the version."""
-    match = re.search(r'=\s*"([^"]+)"', line)
+    Matches the quoted value after `=` (or after `version =` in an inline table), not
+    just the first quoted substring — a backend-qualified key like
+    `"github:armarquez/claude-squad"` is itself quoted, so a naive "first quoted string
+    in the line" match would grab the key instead of the version."""
+    match = re.search(r'=\s*(?:\{[^}]*?version\s*=\s*)?"([^"]+)"', line)
     assert match, f"malformed mise.toml line: {line!r}"
     return match.group(1)
 
@@ -339,6 +387,47 @@ def cmd_squad(target: Path, apply: bool) -> None:
     )
 
 
+# --- cbm-index ---------------------------------------------------------------
+
+
+def _cbm_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [CBM_BIN, "cli", *args], capture_output=True, text=True, check=False
+    )
+
+
+def _cbm_indexed(target: Path) -> bool | None:
+    """True/False if the code-graph index lists this repo, None if CBM isn't installed."""
+    if not shutil.which(CBM_BIN):
+        return None
+    result = _cbm_cli("--json", "list_projects")
+    return str(target) in result.stdout
+
+
+def cmd_cbm_index(target: Path, apply: bool) -> None:
+    if target in {Path("/"), Path.home()}:
+        sys.exit(f"refusing to index {target} — point at a single repo")
+    if not shutil.which(CBM_BIN):
+        print(f"~ {CBM_BIN} not on PATH — run: mise install")
+        return
+    command = f"{CBM_BIN} cli --progress index_repository --repo-path {target}"
+    print(f"would run: {command}")
+    print(
+        "  (writes a graph DB under ~/.cache/codebase-memory-mcp, outside the target)"
+    )
+    if not apply:
+        print("(dry-run — pass --apply to write)")
+        return
+    result = subprocess.run(
+        [CBM_BIN, "cli", "--progress", "index_repository", "--repo-path", str(target)],
+        check=False,
+    )
+    if result.returncode:
+        sys.exit(f"indexing failed (exit {result.returncode})")
+    print("indexed — projects now known to the graph:")
+    print(_cbm_cli("list_projects").stdout)
+
+
 # --- check -------------------------------------------------------------------
 
 
@@ -358,6 +447,21 @@ def cmd_check(target: Path) -> None:
 
     _, report = _plan_mise_tools(target)
     print("\n".join(report))
+
+    if agents_md.exists() and CBM_BEGIN in agents_md.read_text():
+        print(f"✓ {agents_md} has the code-graph note")
+    else:
+        print(
+            f"✗ {agents_md} lacks the code-graph note — run: just onboard agents-md {target} --apply"
+        )
+
+    indexed = _cbm_indexed(target)
+    if indexed is None:
+        print(f"~ {CBM_BIN} not on PATH — run: mise install")
+    elif indexed:
+        print(f"✓ {target} is in the code-graph index")
+    else:
+        print(f"✗ {target} not indexed — run: just onboard cbm-index {target} --apply")
 
     mcp_json = target / ".mcp.json"
     servers = _load_servers()
@@ -392,6 +496,9 @@ def main() -> None:
         case ["squad", *rest]:
             target, apply = _parse_flags(rest)
             cmd_squad(resolve_target(target), apply)
+        case ["cbm-index", *rest]:
+            target, apply = _parse_flags(rest)
+            cmd_cbm_index(resolve_target(target), apply)
         case ["all", *rest]:
             target, apply = _parse_flags(rest)
             resolved = resolve_target(target)
@@ -400,6 +507,8 @@ def main() -> None:
             cmd_mise_tools(resolved, apply)
             print()
             cmd_mcp(resolved, apply)
+            print()
+            cmd_cbm_index(resolved, apply)
         case ["check", target]:
             cmd_check(resolve_target(target))
         case _:

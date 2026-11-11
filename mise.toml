@@ -20,6 +20,11 @@ gitleaks = "8.30.1"     # https://github.com/gitleaks/gitleaks/releases — also
 tmux     = "3.7c"       # https://github.com/tmux/tmux-builds/releases — required by claude-squad
 gh       = "2.100.0"    # https://cli.github.com — required by claude-squad for GitHub-hosted repos; Forgejo-hosted repos use `tea` instead (not mise-managed, see infra's justfile)
 
+# https://github.com/DeusData/codebase-memory-mcp/releases — code-graph MCP server, see cbm/. Not in the mise/aqua
+# registries, so it goes through the github backend (which verifies GitHub attestations). Linux uses the static
+# `-portable` build: the default Linux build needs glibc 2.38, which Ubuntu 22.04 / Debian 12 lack.
+"github:DeusData/codebase-memory-mcp" = { version = "0.12.1", platforms = { linux-x64 = { asset_pattern = "codebase-memory-mcp-linux-amd64-portable.tar.gz" }, linux-arm64 = { asset_pattern = "codebase-memory-mcp-linux-arm64-portable.tar.gz" } } }
+
 "pipx:basic-memory" = "0.23.2"  # https://pypi.org/project/basic-memory/ — keep in sync with mcp/servers.toml's uvx pin
 
 [env]
