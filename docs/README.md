@@ -12,3 +12,5 @@ Start with the root [README.md](../README.md) for the quick start. These go deep
 - **[onboarding-a-repo.md](./onboarding-a-repo.md)** — a walkthrough: giving a repo that
   doesn't yet use this toolkit its own providers and parallel agent sessions, using
   `infra` as the worked example.
+- **[code-graph.md](./code-graph.md)** — the codebase-memory-mcp integration: how it is
+  wired in, what it can and cannot tell an agent, and a checklist of what is still unverified.
