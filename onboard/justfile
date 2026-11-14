@@ -27,6 +27,6 @@ all target *args:
 check target:
     cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py check {{ target }}
 
-# Index <target> into the code graph (writes under ~/.cache/codebase-memory-mcp). Dry-run unless --apply.
+# Add `just cbm-ensure`, then create a local graph and shared artifact. Dry-run unless --apply.
 cbm-index target *args:
     cd '{{ justfile_directory() }}' && uv run scripts/onboard-repo.py cbm-index {{ target }} {{ args }}

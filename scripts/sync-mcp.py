@@ -180,7 +180,7 @@ def _link_codex(servers: dict) -> None:
 def write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n")
-    print(f"wrote {path.relative_to(REPO_ROOT)}")
+    print(f"wrote {path}")
 
 
 def cmd_render() -> None:
