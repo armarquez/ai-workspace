@@ -90,8 +90,9 @@ project by `just doctor`.
 [Parallel agents via claude-squad](#parallel-agents-via-claude-squad), below.
 
 `onboard/` brings an *existing* repo onto this toolkit — `CLAUDE.md` → `AGENTS.md`,
-agent-CLI tool pins in its `mise.toml`, `basic-memory` in its `.mcp.json` — see
-[docs/onboarding-a-repo.md](./docs/onboarding-a-repo.md) for a full walkthrough.
+agent-CLI tool pins in its `mise.toml`, `basic-memory` and `codebase-memory` in its `.mcp.json`,
+and a code-graph index — see [docs/onboarding-a-repo.md](./docs/onboarding-a-repo.md) for a full
+walkthrough. `cbm/` holds the code-graph CLI recipes (`just cbm index .`, `just cbm search ...`).
 
 ## Secrets
 

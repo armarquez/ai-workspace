@@ -39,10 +39,10 @@ If `just doctor` is clean (or the only warnings are "not yet linked," which is e
 linking is opt-in), the prerequisite is met. This is the one step that happens in
 ai-workspace's own directory; everything below happens from `infra`'s.
 
-## Step 1 — the mechanical setup: AGENTS.md, mise.toml, .mcp.json
+## Step 1 — the mechanical setup: AGENTS.md, mise.toml, .mcp.json, code graph
 
 `onboard/` (see [recipes.md](./recipes.md#onboard--onboarding-a-target-repo)) automates the
-three pieces that don't need a human judgment call. Every command below is a dry-run —
+four pieces that don't need a human judgment call. Every command below is a dry-run —
 prints its plan, writes nothing — unless `--apply` is passed:
 
 ```sh
@@ -53,11 +53,22 @@ just onboard all ~/dev/armarquez/infra --apply    # write it
 
 This converts `infra`'s `CLAUDE.md` into `AGENTS.md` (with `CLAUDE.md` reduced to
 `@AGENTS.md`), adds the agent-CLI tool pins from ai-workspace's own `mise.toml` that
-`infra` is missing, and merges `basic-memory` into `infra`'s `.mcp.json`. It never runs
-git in `infra` — review the diff and commit it there yourself, the normal way. See
+`infra` is missing, and merges `basic-memory` and `codebase-memory` into `infra`'s
+`.mcp.json`. It also indexes `infra` into the code graph and adds a short note to `AGENTS.md`
+telling agents to use the graph before grep. It never runs git in `infra` — review the diff and commit it there yourself, the normal way. See
 [conventions.md](./conventions.md#onboarding-a-target-repo) for the full safety model,
 including how a version conflict (an agent-CLI tool `infra` already pins at a different
 version) is reported, never silently resolved.
+
+### What the code graph is good and bad at
+
+- **Good:** finding a function or route by name, listing callers and callees, mapping a diff
+  to affected symbols, orienting in an unfamiliar area.
+- **Bad:** anything dynamic. Dependency injection, reflection, interface dispatch, and generated
+  code leave gaps. `infra` is mostly Terraform/OpenTofu, YAML, and shell, so expect thin coverage
+  there — run `just cbm architecture <project>` after indexing to see what it actually parsed.
+- **Not proof:** "no callers" means "no static callers". Confirm candidates before deleting
+  anything. See [recipes.md](./recipes.md#gotchas-that-dont-fit-a-table-cell).
 
 ## Step 2 — one extra agent on infra
 

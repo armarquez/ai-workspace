@@ -18,6 +18,10 @@ flowchart LR
     SQUAD["squad/config.json"] --> SS["sync-squad.py"] --> T3["~/.claude-squad/config.json"]
 ```
 
+`mcp/servers.toml` holds two servers today: `basic-memory` (shared notes) and
+`codebase-memory` (a code graph over each repo; see [recipes.md](./recipes.md#cbm--the-code-graph)).
+Both render the same way.
+
 **Why one source per concern.** Four hand-maintained copies of "which MCP servers exist"
 drift the moment one gets an update the others miss. A canonical file plus a renderer
 makes drift impossible instead of merely unlikely — the renderer is the only thing that

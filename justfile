@@ -5,6 +5,7 @@ mod codex
 mod ollama
 mod squad
 mod onboard
+mod cbm
 
 default:
     @just --list
@@ -48,6 +49,10 @@ direnv-setup:
 lint-all:
     prek run --all-files
 
+# Run behavior tests
+test:
+    python3 -B -m unittest discover -s tests -v
+
 # Verify the environment without changing anything
 doctor:
     #!/usr/bin/env bash
@@ -61,6 +66,7 @@ doctor:
     just codex check || status=1
     just ollama check || status=1
     just squad check || status=1
+    just cbm check || status=1
     just check-rules || status=1
     exit $status
 

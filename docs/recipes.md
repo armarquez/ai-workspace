@@ -97,6 +97,26 @@ Not a model provider; it orchestrates the five above. See
 | `link-target target` | `sync-squad.py link --profiles-file <target>/.ai-workspace/squad-profiles.json` — merges a target repo's generated profiles (see `onboard squad` below) into `~/.claude-squad/config.json`, same merge-by-name/backup-first logic as `link`. |
 | `unlink-target target` | Removes only that target's profile names. |
 
+## `cbm/` — the code graph
+
+[codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) indexes a repo into a
+graph of functions, calls, and routes. Agents query it over MCP instead of grepping. It has
+no `start`: the server is registered through `mcp/servers.toml` like `basic-memory`, and each
+agent launches it. These recipes are the CLI half — index a repo, then query it without an agent.
+
+| Recipe | Does |
+|---|---|
+| `check` | Binary present, version matches the mise pin, this repo indexed? Never mutates. |
+| `index repo` | Indexes `repo` (relative to where you ran `just`) into the shared cache. Indexing is explicit; the server doesn't auto-index. |
+| `projects` | Lists indexed projects and the name CBM derived from each path. |
+| `architecture project` | Languages, packages, entry points, routes. |
+| `search project pattern label` | Structural search by name pattern and label (`Function`, `Route`, ...). |
+| `trace project fn direction depth` | Who calls `fn` (`inbound`) or what it calls (`outbound`). |
+| `dead-code project` | Functions with no static callers. Candidates only — see the gotcha below. |
+| `cypher project query` | Arbitrary read-only Cypher. |
+| `detect-changes project` | Maps the uncommitted diff to affected symbols. |
+| `link` / `unlink` | No-ops. Registration goes through `servers.toml`. |
+
 ## `onboard/` — onboarding a target repo
 
 Not a provider, and not scoped to this repo or `$HOME` like everything else here — every
@@ -105,12 +125,13 @@ recipe below takes a `target` path to some *other* repo. See
 
 | Recipe | Does |
 |---|---|
-| `agents-md target *args` | Converts `target`'s `CLAUDE.md` into `AGENTS.md`, reducing `CLAUDE.md` to `@AGENTS.md`. Aborts if `AGENTS.md` already exists; no-ops if already converted. |
-| `mise-tools target *args` | Adds the agent-CLI tool pins `target`'s `mise.toml` is missing (`claude`, `agy`, `opencode`, `codex`, `claude-squad`, `tmux`, `gh`). Never touches a tool `target` already pins at a different version — reports it as a conflict instead. |
+| `agents-md target *args` | Converts `target`'s `CLAUDE.md` into `AGENTS.md`, reducing `CLAUDE.md` to `@AGENTS.md`. Aborts if `AGENTS.md` already exists. Also adds a marker-delimited note telling agents to use the code graph before grep; re-runs refresh it in place. |
+| `mise-tools target *args` | Adds the agent-CLI tool pins `target`'s `mise.toml` is missing (`claude`, `agy`, `opencode`, `codex`, `claude-squad`, `tmux`, `gh`, `codebase-memory-mcp`). Never touches a tool `target` already pins at a different version — reports it as a conflict instead. |
 | `mcp target *args` | Merges `mcp/servers.toml`'s servers into `target`'s `.mcp.json`. |
 | `squad target *args` | Generates `target/.ai-workspace/squad-profiles.json` — `target`'s own claude-squad profiles, named `<target dirname>: <provider>` to avoid colliding with another onboarded repo's or ai-workspace's own unqualified names. Appends `OPENROUTER_API_KEY` to `target`'s `secrets.env` if it has one; otherwise the generated opencode profile uses an absolute path to ai-workspace's own. Not part of `all` — opt-in, same as claude-squad itself. Merge the result in with `just squad link-target target`. |
-| `all target *args` | Runs `agents-md`, `mise-tools`, and `mcp` (not `squad` — opt-in separately). |
-| `check target` | Read-only status against `target` for `agents-md`/`mise-tools`/`mcp`. Never mutates anything. |
+| `cbm-index target *args` | Indexes `target` into the code graph with `codebase-memory-mcp cli index_repository`. The one onboarding step that runs a binary and writes outside `target` (a graph DB under `~/.cache/codebase-memory-mcp`). Skips with a message if the binary isn't on `PATH`; refuses `/` and `$HOME`. |
+| `all target *args` | Runs `agents-md`, `mise-tools`, `mcp`, and `cbm-index` (not `squad` — opt-in separately). |
+| `check target` | Read-only status against `target` for `agents-md`/`mise-tools`/`mcp`/`cbm-index`. Never mutates anything. |
 
 Every recipe except `check` is a dry-run — prints its plan, writes nothing — unless
 `*args` includes `--apply`. None of them ever run git in `target`; you review and commit
@@ -118,6 +139,16 @@ there yourself. Not added to `just doctor`'s fan-out or `link-global`/`unlink-gl
 [conventions.md](./conventions.md#onboarding-a-target-repo) for why.
 
 ## Gotchas that don't fit a table cell
+
+- **The graph is static.** Dynamic dispatch, dependency injection, and generated code leave
+  gaps, and unresolved calls get no `CALLS` edge. "No callers" means "no static callers",
+  not "unused". Upstream tracks open cases, e.g.
+  [#1114](https://github.com/DeusData/codebase-memory-mcp/issues/1114) (Go interface calls),
+  [#2444](https://github.com/DeusData/codebase-memory-mcp/issues/2444) (Go Wire), and
+  [#1682](https://github.com/DeusData/codebase-memory-mcp/issues/1682) (TypeScript imports).
+  Use it to find candidates, then confirm with grep or a test.
+- **`CBM_CACHE_DIR` stays unset.** The MCP server and the `cbm/` recipes must share one
+  cache; CBM rejects a second cache root per account.
 
 - **Every `start` recipe `cd`s to the repo root first.** That's correct for launching an
   interactive session against *this* repo, but it's why `squad/config.json`'s profiles
