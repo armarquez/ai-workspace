@@ -410,6 +410,9 @@ def cmd_cbm_index(target: Path, apply: bool) -> None:
     if not shutil.which(CBM_BIN):
         print(f"~ {CBM_BIN} not on PATH — run: mise install")
         return
+    if _cbm_indexed(target):
+        print(f"✓ {target} already indexed — nothing to do")
+        return
     command = f"{CBM_BIN} cli --progress index_repository --repo-path {target}"
     print(f"would run: {command}")
     print(

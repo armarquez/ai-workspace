@@ -35,6 +35,11 @@ repos:
   # instead — no Go toolchain dependency, and one less thing to build.
   - repo: local
     hooks:
+      - id: tests
+        name: tests
+        entry: python3 -B -m unittest discover -s tests -v
+        language: system
+        pass_filenames: false
       - id: gitleaks
         name: gitleaks
         entry: gitleaks protect --staged --redact -v

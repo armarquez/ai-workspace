@@ -49,6 +49,10 @@ direnv-setup:
 lint-all:
     prek run --all-files
 
+# Run behavior tests
+test:
+    python3 -B -m unittest discover -s tests -v
+
 # Verify the environment without changing anything
 doctor:
     #!/usr/bin/env bash

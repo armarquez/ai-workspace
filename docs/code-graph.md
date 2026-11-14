@@ -47,11 +47,17 @@ flowchart LR
 
 ## What was verified
 
-- **Install:** `mise install` fetched and ran `0.12.1` on macOS arm64.
+- **Install:** `mise install` fetched and ran `0.12.1` on macOS arm64 and the static
+  portable binary on Linux x86-64 under Windows Subsystem for Linux (WSL).
 - **Server:** with `--ui=false` it answered `initialize` and `tools/list` with 17 tools.
 - **Rendering:** `just sync-mcp` wrote the entry for all four providers, and `just codex check` validated the Codex config.
 - **Onboarding:** against a throwaway repo, dry-run, `--apply`, and a second `--apply` behaved as designed. The second run changed nothing.
 - **Querying:** `just cbm search` found a known function in the indexed fixture.
+- **Supply chain:** the installed Linux binary matched a SLSA provenance subject signed by
+  the expected `_build.yml` workflow.
+- **Infra coverage:** a sanitized `infra` clone produced 11,634 nodes and 22,838 edges
+  across Terraform, Kubernetes, Ansible, Python, Bash, and YAML. Change impact mapped a
+  temporary Python edit to three symbols.
 
 ## To confirm
 
@@ -59,30 +65,47 @@ Each item is unverified or only partly verified. Tick them off as you check.
 
 ### Install and supply chain
 
-- [ ] **Linux/WSL asset choice.** Confirm mise picks `codebase-memory-mcp-linux-amd64-portable.tar.gz` (and the arm64 one) on a real Linux or WSL host. Not tested; there was no Linux machine.
-- [ ] **Attestation check.** Confirm mise verifies the SLSA provenance, not only the GitHub-internal attestations. If it skips it, run `gh attestation verify <tarball> --repo DeusData/codebase-memory-mcp --signer-workflow DeusData/codebase-memory-mcp/.github/workflows/_build.yml`. The signer is the `_build.yml` workflow on `main`, not a tag.
-- [ ] **Pin freshness.** `0.12.1` was the latest stable on 2026-11-11. Look up the current release before merging, per the repo's pinning rule.
+- [x] **Linux/WSL asset choice.** Mise selected the statically linked Linux x86-64
+  portable binary under WSL. Linux arm64 remains unverified.
+- [x] **Attestation check.** `gh attestation verify` matched the installed binary's SHA-256
+  to SLSA provenance signed by
+  `DeusData/codebase-memory-mcp/.github/workflows/_build.yml`.
+- [x] **Pin freshness.** `0.12.1` was still the latest stable on 2026-11-13.
 
 ### Runtime behavior
 
-- [ ] **Loopback UI stays off.** `config list` showed `ui_enabled = false` after the flag ran. Confirm nothing listens on `127.0.0.1:9749` during a live agent session.
-- [ ] **Background daemon.** A one-shot CLI call started a temporary daemon. Confirm how long one lives after an agent session closes, and that it does not linger.
+- [x] **Loopback UI stays off.** `config list` showed `ui_enabled = false`, and no listener
+  was present on `127.0.0.1:9749` during an initialized 12-second MCP session.
+- [x] **Background daemon.** A one-shot CLI daemon exited after the client closed. No
+  residual process remained after 15 seconds.
 - [ ] **Auto re-index.** From source, an MCP session in an already-indexed repo watches and re-indexes in the background. Not observed. Confirm it behaves with a large repo and with a worktree.
-- [ ] **Codex handshake.** Codex's MCP startup deadline defaults to 10 seconds. Confirm a cold start fits. If not, set `startup_timeout_sec` on the entry, as `basic-memory` does.
+- [x] **Codex handshake.** A cold MCP initialization took 4.93 seconds, within Codex's
+  10-second default.
 
 ### Per-provider launch
 
-- [ ] **Each agent finds the binary.** The server was tested directly, not launched by each agent. Confirm Claude Code, Codex, and opencode resolve `codebase-memory-mcp` through the mise shim and list its tools.
+- [ ] **Each agent finds the binary.** Codex listed the server as enabled and opencode
+  connected. Claude found it but requires interactive project approval before connecting.
 - [ ] **Antigravity.** Its MCP config format is already marked unverified in `scripts/sync-mcp.py`. The same caveat applies here.
 - [ ] **Worktrees.** The session project is the agent's working directory. Confirm a claude-squad worktree maps to its own project, or find out how it maps to the main checkout's index.
 
 ### Data and security
 
-- [ ] **What gets stored.** The ai-workspace index reported `secrets.env` as partly parsed, so non-code files are read. Before indexing `infra`, confirm what CBM keeps from non-code files, and whether a `.cbmignore` should exclude secrets, SOPS files, and key material.
-- [ ] **Index location.** The DB lives under `~/.cache/codebase-memory-mcp`, outside the target repo. Confirm that is acceptable for repos with sensitive contents.
-- [ ] **Network use.** The research found no outbound calls in the source. Confirm with a network trace if the repo handles sensitive data.
+- [x] **What gets stored.** CBM persists parsed graph data in SQLite. A root `.cbmignore`
+  excluded `secrets.env`, SOPS files, key material, backups, and secret fixtures from the
+  sanitized `infra` test.
+- [x] **Index location.** The test index used 36 MiB under
+  `~/.cache/codebase-memory-mcp`. Its directory and database were owner-only (`0700` and
+  `0600`).
+- [x] **Network use.** Indexing and queries run locally. After MCP initialization, CBM
+  performs one best-effort GitHub release-metadata request. Upstream states that it sends
+  no project data; see its
+  [runtime network behavior](https://github.com/DeusData/codebase-memory-mcp/blob/v0.12.1/SECURITY.md#runtime-network-behavior).
 
 ### Coverage
 
-- [ ] **`infra` coverage.** It is mostly Terraform/OpenTofu, YAML, and shell. Index it, run `just cbm architecture <project>`, and confirm the graph is useful before relying on the agent note there.
+- [x] **`infra` coverage.** The graph found Terraform resources, Kubernetes and Flux
+  objects, Ansible tasks, Python call relationships, and shell entry points. Eight
+  Jinja-heavy templates were unusable and 23 were partially parsed, so source inspection
+  remains necessary for those files.
 - [ ] **Reachability use.** The earlier reachability attempt did not work. Decide whether the graph is a hint source only, given the static limits above.
