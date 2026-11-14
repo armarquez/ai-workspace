@@ -22,6 +22,7 @@ class CbmIndexTests(unittest.TestCase):
         self.root = Path(self.temp_dir.name)
         self.target = self.root / "target"
         self.target.mkdir()
+        (self.target / "justfile").write_text("default:\n    @just --list\n")
         self.log = self.root / "invocations.jsonl"
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
@@ -58,8 +59,14 @@ class CbmIndexTests(unittest.TestCase):
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
         }
 
-    def run_onboarding(self, *, indexed: bool) -> subprocess.CompletedProcess[str]:
+    def run_onboarding(
+        self, *, indexed: bool, artifact: bool = False
+    ) -> subprocess.CompletedProcess[str]:
         """Run the public onboarding command with a controlled CBM response."""
+        if artifact:
+            artifact_path = self.target / ".codebase-memory" / "graph.db.zst"
+            artifact_path.parent.mkdir(exist_ok=True)
+            artifact_path.write_bytes(b"graph")
         env = self.env | {"FAKE_CBM_INDEXED": "1" if indexed else "0"}
         return subprocess.run(
             [
@@ -80,11 +87,12 @@ class CbmIndexTests(unittest.TestCase):
         return [json.loads(line) for line in self.log.read_text().splitlines()]
 
     def test_apply_skips_an_already_indexed_target(self) -> None:
-        result = self.run_onboarding(indexed=True)
+        result = self.run_onboarding(indexed=True, artifact=True)
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("already indexed — nothing to do", result.stdout)
+        self.assertIn("already indexed with a shared artifact", result.stdout)
         self.assertEqual(self.invocations(), [["cli", "--json", "list_projects"]])
+        self.assertIn("cbm-ensure:", (self.target / "justfile").read_text())
 
     def test_apply_indexes_an_unindexed_target(self) -> None:
         result = self.run_onboarding(indexed=False)
@@ -101,10 +109,30 @@ class CbmIndexTests(unittest.TestCase):
                     "index_repository",
                     "--repo-path",
                     str(self.target),
+                    "--name",
+                    "target",
+                    "--persistence",
+                    "true",
                 ],
                 ["cli", "list_projects"],
             ],
         )
+
+    def test_apply_rebuilds_when_only_the_local_index_exists(self) -> None:
+        result = self.run_onboarding(indexed=True)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--persistence true", result.stdout)
+        self.assertEqual(len(self.invocations()), 3)
+
+    def test_apply_keeps_one_managed_recipe(self) -> None:
+        first = self.run_onboarding(indexed=True, artifact=True)
+        second = self.run_onboarding(indexed=True, artifact=True)
+
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        justfile = (self.target / "justfile").read_text()
+        self.assertEqual(justfile.count("# BEGIN ai-workspace codebase-memory"), 1)
 
 
 if __name__ == "__main__":

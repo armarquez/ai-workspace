@@ -40,8 +40,11 @@ MISE_FILE = REPO_ROOT / "mise.toml"
 SERVERS_FILE = REPO_ROOT / "mcp" / "servers.toml"
 SQUAD_TEMPLATE_FILE = REPO_ROOT / "squad" / "config.json"
 CBM_SNIPPET_FILE = REPO_ROOT / "onboard" / "cbm-agents-snippet.md"
+CBM_JUST_SNIPPET_FILE = REPO_ROOT / "onboard" / "cbm-just-snippet.just"
 CBM_BEGIN = "<!-- BEGIN ai-workspace codebase-memory -->"
 CBM_END = "<!-- END ai-workspace codebase-memory -->"
+CBM_JUST_BEGIN = "# BEGIN ai-workspace codebase-memory"
+CBM_JUST_END = "# END ai-workspace codebase-memory"
 CBM_BIN = "codebase-memory-mcp"
 OPENROUTER_REF = "OPENROUTER_API_KEY=op://Personal/OpenRouter API/credential"
 
@@ -396,6 +399,32 @@ def _cbm_cli(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _with_managed_block(text: str, block: str, begin: str, end: str) -> str:
+    """Append or refresh one marker-delimited block."""
+    pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
+    if pattern.search(text):
+        return pattern.sub(lambda _: block, text, count=1)
+    prefix = text.rstrip("\n")
+    separator = "\n\n" if prefix else ""
+    return f"{prefix}{separator}{block}\n"
+
+
+def _cmd_cbm_recipe(target: Path, apply: bool) -> None:
+    justfile = target / "justfile"
+    existing = justfile.read_text() if justfile.exists() else ""
+    block = CBM_JUST_SNIPPET_FILE.read_text().strip()
+    rendered = _with_managed_block(existing, block, CBM_JUST_BEGIN, CBM_JUST_END)
+    if rendered == existing:
+        print(f"✓ {justfile} has the cbm-ensure recipe")
+        return
+    print(f"would add the cbm-ensure recipe to {justfile}")
+    if not apply:
+        return
+    backup(justfile)
+    justfile.write_text(rendered)
+    print(f"wrote {justfile}")
+
+
 def _cbm_indexed(target: Path) -> bool | None:
     """True/False if the code-graph index lists this repo, None if CBM isn't installed."""
     if not shutil.which(CBM_BIN):
@@ -407,22 +436,36 @@ def _cbm_indexed(target: Path) -> bool | None:
 def cmd_cbm_index(target: Path, apply: bool) -> None:
     if target in {Path("/"), Path.home()}:
         sys.exit(f"refusing to index {target} — point at a single repo")
+    _cmd_cbm_recipe(target, apply)
     if not shutil.which(CBM_BIN):
         print(f"~ {CBM_BIN} not on PATH — run: mise install")
         return
-    if _cbm_indexed(target):
-        print(f"✓ {target} already indexed — nothing to do")
+    artifact = target / ".codebase-memory" / "graph.db.zst"
+    if _cbm_indexed(target) and artifact.exists():
+        print(f"✓ {target} already indexed with a shared artifact — nothing to do")
         return
-    command = f"{CBM_BIN} cli --progress index_repository --repo-path {target}"
-    print(f"would run: {command}")
-    print(
-        "  (writes a graph DB under ~/.cache/codebase-memory-mcp, outside the target)"
+    command = (
+        f"{CBM_BIN} cli --progress index_repository --repo-path {target} "
+        f"--name {target.name} --persistence true"
     )
+    print(f"would run: {command}")
+    print("  (writes a local graph DB and .codebase-memory/graph.db.zst)")
     if not apply:
         print("(dry-run — pass --apply to write)")
         return
     result = subprocess.run(
-        [CBM_BIN, "cli", "--progress", "index_repository", "--repo-path", str(target)],
+        [
+            CBM_BIN,
+            "cli",
+            "--progress",
+            "index_repository",
+            "--repo-path",
+            str(target),
+            "--name",
+            target.name,
+            "--persistence",
+            "true",
+        ],
         check=False,
     )
     if result.returncode:
@@ -458,6 +501,15 @@ def cmd_check(target: Path) -> None:
             f"✗ {agents_md} lacks the code-graph note — run: just onboard agents-md {target} --apply"
         )
 
+    justfile = target / "justfile"
+    if justfile.exists() and CBM_JUST_BEGIN in justfile.read_text():
+        print(f"✓ {justfile} has the cbm-ensure recipe")
+    else:
+        print(
+            f"✗ {justfile} lacks the cbm-ensure recipe — "
+            f"run: just onboard cbm-index {target} --apply"
+        )
+
     indexed = _cbm_indexed(target)
     if indexed is None:
         print(f"~ {CBM_BIN} not on PATH — run: mise install")
@@ -465,6 +517,12 @@ def cmd_check(target: Path) -> None:
         print(f"✓ {target} is in the code-graph index")
     else:
         print(f"✗ {target} not indexed — run: just onboard cbm-index {target} --apply")
+
+    artifact = target / ".codebase-memory" / "graph.db.zst"
+    if artifact.exists():
+        print(f"✓ shared graph artifact present at {artifact}")
+    else:
+        print(f"✗ no shared graph artifact — run: just cbm-ensure in {target}")
 
     mcp_json = target / ".mcp.json"
     servers = _load_servers()
